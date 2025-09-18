@@ -4,7 +4,7 @@ FROM node:18-alpine AS frontend-build
 # Build frontend
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -15,7 +15,10 @@ WORKDIR /app
 COPY pom.xml ./
 COPY src ./src
 
-# Build the JAR file
+# Copy the frontend build into Spring Boot's static resources BEFORE building
+COPY --from=frontend-build /app/frontend/build ./src/main/resources/static
+
+# Build the JAR file (now includes the frontend)
 RUN mvn clean package -DskipTests
 
 # Final stage
@@ -23,15 +26,8 @@ FROM openjdk:17-jdk-slim
 
 WORKDIR /app
 
-# Copy backend jar from the correct location
+# Copy the JAR file that now contains the frontend
 COPY --from=backend-build /app/target/fliora-0.0.1-SNAPSHOT.jar app.jar
-
-# Copy frontend build to Spring Boot static resources directory
-COPY --from=frontend-build /app/frontend/build ./static/
-
-# Create the directory structure that Spring Boot expects
-RUN mkdir -p /app/BOOT-INF/classes/static && \
-    cp -r ./static/* /app/BOOT-INF/classes/static/ 2>/dev/null || true
 
 EXPOSE 8080
 

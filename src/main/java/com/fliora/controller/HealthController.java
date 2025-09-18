@@ -8,10 +8,8 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
-    @GetMapping("/")
-    public String home() {
-        return "Fliora is running!";
-    }
+    // Remove the root mapping - let React handle it
+    // @GetMapping("/") // DELETE THIS LINE
 
     @GetMapping("/actuator/health")
     public Map<String, String> health() {
@@ -19,5 +17,11 @@ public class HealthController {
         status.put("status", "UP");
         status.put("message", "Application is running");
         return status;
+    }
+
+    // Add a specific health check endpoint instead
+    @GetMapping("/api/health")
+    public String apiHealth() {
+        return "Fliora API is running!";
     }
 }
