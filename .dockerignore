@@ -1,0 +1,8 @@
+frontend/node_modules
+target
+.git
+.gitignore
+README.md
+.dockerignore
+.idea
+*.iml
