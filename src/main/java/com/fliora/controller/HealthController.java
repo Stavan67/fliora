@@ -8,6 +8,11 @@ import java.util.Map;
 @RestController
 public class HealthController {
 
+    @GetMapping("/")
+    public String home() {
+        return "Fliora is running!";
+    }
+
     @GetMapping("/actuator/health")
     public Map<String, String> health() {
         Map<String, String> status = new HashMap<>();
