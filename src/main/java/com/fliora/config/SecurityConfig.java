@@ -58,13 +58,17 @@ public class SecurityConfig {
         // Get Railway domain or use localhost
         String railwayDomain = env.getProperty("RAILWAY_PUBLIC_DOMAIN");
 
-        if (railwayDomain != null) {
+        if (railwayDomain != null || env.getActiveProfiles().length > 0) {
             // Production on Railway
             configuration.setAllowedOrigins(Arrays.asList(
-                    "https://" + railwayDomain,
                     "https://leopicks.com",
                     "https://www.leopicks.com"
             ));
+
+            // If Railway provides a different domain
+            if (railwayDomain != null && !railwayDomain.contains("leopicks.com")) {
+                configuration.addAllowedOrigin("https://" + railwayDomain);
+            }
         } else {
             // Local development
             configuration.setAllowedOrigins(Arrays.asList(
@@ -77,6 +81,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
