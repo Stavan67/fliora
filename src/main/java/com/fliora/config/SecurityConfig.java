@@ -55,17 +55,20 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Get Railway domain or use localhost
+        // Check if we're in production by looking for production indicators
         String railwayDomain = env.getProperty("RAILWAY_PUBLIC_DOMAIN");
+        boolean isProduction = railwayDomain != null ||
+                env.getProperty("RAILWAY_ENVIRONMENT") != null ||
+                "production".equals(env.getProperty("SPRING_PROFILES_ACTIVE"));
 
-        if (railwayDomain != null || env.getActiveProfiles().length > 0) {
-            // Production on Railway
+        if (isProduction) {
+            // Production on Railway/leopicks.com
             configuration.setAllowedOrigins(Arrays.asList(
                     "https://leopicks.com",
                     "https://www.leopicks.com"
             ));
 
-            // If Railway provides a different domain
+            // Add Railway domain if it's different
             if (railwayDomain != null && !railwayDomain.contains("leopicks.com")) {
                 configuration.addAllowedOrigin("https://" + railwayDomain);
             }
