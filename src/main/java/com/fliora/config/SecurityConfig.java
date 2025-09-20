@@ -40,10 +40,24 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> {
+                    // Auth endpoints - MUST be first
                     auth.requestMatchers("/api/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
-                    auth.requestMatchers("/actuator/health").permitAll();
-                    auth.requestMatchers("/static/**", "/", "/index.html", "/*.js", "/*.css", "/*.ico", "/*.png", "/*.jpg", "/*.jpeg", "/*.gif", "/*.svg").permitAll();
+
+                    // Health check endpoints
+                    auth.requestMatchers("/actuator/health", "/api/health").permitAll();
+
+                    // Static resources - be more specific and permissive
+                    auth.requestMatchers("/", "/index.html").permitAll();
+                    auth.requestMatchers("/static/**").permitAll();
+                    auth.requestMatchers("/*.js", "/*.css", "/*.ico", "/*.png", "/*.jpg", "/*.jpeg", "/*.gif", "/*.svg").permitAll();
+                    auth.requestMatchers("/manifest.json", "/robots.txt", "/favicon.ico").permitAll();
+                    auth.requestMatchers("/login", "/register", "/verify-email").permitAll();
+
+                    // Error page
+                    auth.requestMatchers("/error").permitAll();
+
+                    // Everything else requires authentication
                     auth.anyRequest().authenticated();
                 })
                 .formLogin(form -> form.disable())
@@ -55,36 +69,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Check if we're in production by looking for production indicators
-        String railwayDomain = env.getProperty("RAILWAY_PUBLIC_DOMAIN");
-        boolean isProduction = railwayDomain != null ||
-                env.getProperty("RAILWAY_ENVIRONMENT") != null ||
-                "production".equals(env.getProperty("SPRING_PROFILES_ACTIVE"));
+        // For production deployment
+        configuration.setAllowedOrigins(Arrays.asList(
+                "https://leopicks.com",
+                "https://www.leopicks.com",
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://127.0.0.1:3000"
+        ));
 
-        if (isProduction) {
-            // Production on Railway/leopicks.com
-            configuration.setAllowedOrigins(Arrays.asList(
-                    "https://leopicks.com",
-                    "https://www.leopicks.com"
-            ));
-
-            // Add Railway domain if it's different
-            if (railwayDomain != null && !railwayDomain.contains("leopicks.com")) {
-                configuration.addAllowedOrigin("https://" + railwayDomain);
-            }
-        } else {
-            // Local development
-            configuration.setAllowedOrigins(Arrays.asList(
-                    "http://localhost:3000",
-                    "http://localhost:3001",
-                    "http://127.0.0.1:3000"
-            ));
-        }
-
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
