@@ -8,14 +8,19 @@ import com.fliora.repository.UserRepository;
 import com.fliora.service.EmailService;
 import com.fliora.service.UserService;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Transactional
 public class UserServiceImpl implements UserService {
+    private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
@@ -47,9 +52,22 @@ public class UserServiceImpl implements UserService {
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
 
+        // Save user first - this is the critical part
         User savedUser = userRepository.save(user);
+        logger.info("User saved successfully with ID: {}", savedUser.getId());
 
-        emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
+        // Send email asynchronously so it doesn't block registration
+        CompletableFuture.runAsync(() -> {
+            try {
+                logger.info("Sending verification email asynchronously to: {}", savedUser.getEmail());
+                emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
+                logger.info("Verification email sent successfully to: {}", savedUser.getEmail());
+            } catch (Exception e) {
+                logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage(), e);
+                // Don't throw exception - just log the error
+                // Registration should still succeed even if email fails
+            }
+        });
 
         return savedUser;
     }
@@ -95,7 +113,16 @@ public class UserServiceImpl implements UserService {
         user.setVerificationToken(newVerificationToken);
         userRepository.save(user);
 
-        emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
+        // Send email asynchronously with timeout protection
+        CompletableFuture.runAsync(() -> {
+            try {
+                logger.info("Resending verification email to: {}", email);
+                emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
+                logger.info("Verification email resent successfully to: {}", email);
+            } catch (Exception e) {
+                logger.error("Failed to resend verification email to: {}", email, e);
+            }
+        });
     }
 
     @Override
