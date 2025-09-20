@@ -69,10 +69,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // For production deployment
+        // Add both HTTP and HTTPS for leopicks.com
         configuration.setAllowedOrigins(Arrays.asList(
                 "https://leopicks.com",
                 "https://www.leopicks.com",
+                "http://leopicks.com",      // Add this
+                "http://www.leopicks.com",  // Add this
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://127.0.0.1:3000"

@@ -7,6 +7,8 @@ import com.fliora.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     private final UserService userService;
 
     @Value("${app.frontend-url:http://localhost:3000}")
@@ -32,7 +35,12 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody UserRegistrationDto registrationDto) {
         try {
+            logger.info("Registration attempt for username: {}, email: {}",
+                    registrationDto.getUsername(), registrationDto.getEmail());
+
             User user = userService.registerUser(registrationDto);
+
+            logger.info("User registered successfully: {}", user.getId());
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -42,9 +50,14 @@ public class AuthController {
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
+            logger.error("Registration failed for username: {}, email: {}",
+                    registrationDto.getUsername(), registrationDto.getEmail(), e);
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
+            response.put("error", e.getClass().getSimpleName()); // Add error type for debugging
+
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
     }
@@ -52,12 +65,16 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginDto loginDto, HttpServletRequest request) {
         try {
+            logger.info("Login attempt for: {}", loginDto.getUsernameOrEmail());
+
             User user = userService.authenticateUser(loginDto);
 
             HttpSession session = request.getSession(true);
             session.setAttribute("userId", user.getId());
             session.setAttribute("username", user.getUsername());
             session.setMaxInactiveInterval(30*60);
+
+            logger.info("Login successful for user: {}", user.getUsername());
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -70,6 +87,8 @@ public class AuthController {
             ));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Login failed for: {}", loginDto.getUsernameOrEmail(), e);
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
@@ -82,6 +101,7 @@ public class AuthController {
         HttpSession session = request.getSession(false);
         if(session != null) {
             session.invalidate();
+            logger.info("User logged out successfully");
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -94,9 +114,13 @@ public class AuthController {
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyEmail(@RequestParam("token") String token) {
         try {
+            logger.info("Email verification attempt with token: {}", token.substring(0, 8) + "...");
+
             boolean verified = userService.verifyEmail(token);
 
             if(verified) {
+                logger.info("Email verified successfully");
+
                 String htmlResponse = String.format("""
                         <html>
                         <head>
@@ -142,12 +166,16 @@ public class AuthController {
                         """, frontendUrl);
                 return ResponseEntity.ok().header("Content-Type", "text/html").body(htmlResponse);
             } else {
+                logger.warn("Email verification failed for token: {}", token.substring(0, 8) + "...");
+
                 Map<String, Object> response = new HashMap<>();
                 response.put("success", false);
                 response.put("message", "Email verification failed");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
         } catch (Exception e) {
+            logger.error("Email verification error for token: {}", token.substring(0, 8) + "...", e);
+
             String htmlResponse = String.format("""
                     <html>
                     <head>
@@ -201,7 +229,11 @@ public class AuthController {
     public ResponseEntity<?> resendVerificationEmail(@RequestBody Map<String, String> request) {
         try {
             String email = request.get("email");
+            logger.info("Resending verification email to: {}", email);
+
             userService.resendVerificationEmail(email);
+
+            logger.info("Verification email resent successfully to: {}", email);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -209,6 +241,8 @@ public class AuthController {
 
             return ResponseEntity.ok(response);
         } catch(Exception e) {
+            logger.error("Failed to resend verification email", e);
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
@@ -240,6 +274,8 @@ public class AuthController {
         Map<String, Object> response = new HashMap<>();
 
         try {
+            logger.debug("Checking availability for {}: {}", type, value);
+
             boolean exists = false;
             if("username".equals(type)) {
                 exists = userService.existsByUsername(value);
@@ -251,6 +287,8 @@ public class AuthController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            logger.error("Failed to check availability for {} : {}", type, value, e);
+
             response.put("error", "Failed to check availability");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
