@@ -14,7 +14,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 @Transactional
@@ -34,7 +33,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public User registerUser(UserRegistrationDto registrationDto) {
         if(!registrationDto.getPassword().equals(registrationDto.getConfirmPassword())) {
-            throw new PasswordMismatchException("Password do not match");
+            throw new PasswordMismatchException("Passwords do not match");
         }
         if(userRepository.existsByUsername(registrationDto.getUsername())) {
             throw new UsernameAlreadyExistsException("Username already exists");
@@ -52,22 +51,19 @@ public class UserServiceImpl implements UserService {
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
 
-        // Save user first - this is the critical part
+        // Save user first
         User savedUser = userRepository.save(user);
         logger.info("User saved successfully with ID: {}", savedUser.getId());
 
-        // Send email asynchronously so it doesn't block registration
-        CompletableFuture.runAsync(() -> {
-            try {
-                logger.info("Sending verification email asynchronously to: {}", savedUser.getEmail());
-                emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
-                logger.info("Verification email sent successfully to: {}", savedUser.getEmail());
-            } catch (Exception e) {
-                logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage(), e);
-                // Don't throw exception - just log the error
-                // Registration should still succeed even if email fails
-            }
-        });
+        // Send email synchronously with SendGrid (it's fast and reliable)
+        try {
+            emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
+            logger.info("Verification email sent successfully to: {}", savedUser.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage());
+            // Don't throw exception - registration should still succeed
+            // User can resend verification email later
+        }
 
         return savedUser;
     }
@@ -93,10 +89,12 @@ public class UserServiceImpl implements UserService {
     public boolean verifyEmail(String verificationToken) {
         User user = userRepository.findByVerificationToken(verificationToken)
                 .orElseThrow(() -> new UserNotFoundException("Invalid verification token"));
+
         user.setEmailVerified(true);
         user.setVerificationToken(null);
         userRepository.save(user);
 
+        logger.info("Email verified successfully for user: {}", user.getUsername());
         return true;
     }
 
@@ -113,16 +111,14 @@ public class UserServiceImpl implements UserService {
         user.setVerificationToken(newVerificationToken);
         userRepository.save(user);
 
-        // Send email asynchronously with timeout protection
-        CompletableFuture.runAsync(() -> {
-            try {
-                logger.info("Resending verification email to: {}", email);
-                emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
-                logger.info("Verification email resent successfully to: {}", email);
-            } catch (Exception e) {
-                logger.error("Failed to resend verification email to: {}", email, e);
-            }
-        });
+        // Send email synchronously with SendGrid
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
+            logger.info("Verification email resent successfully to: {}", email);
+        } catch (Exception e) {
+            logger.error("Failed to resend verification email to: {}", email, e);
+            throw new RuntimeException("Failed to send verification email. Please try again later.");
+        }
     }
 
     @Override

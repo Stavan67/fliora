@@ -7,17 +7,10 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
-
 @Service
 public class EmailService {
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
     private final JavaMailSender mailSender;
-
-    @Value("${spring.mail.username}")
-    private String fromEmail;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -28,59 +21,47 @@ public class EmailService {
 
     public void sendVerificationEmail(String toEmail, String username, String verificationToken) {
         try {
-            logger.info("Attempting to send verification email to: {}", toEmail);
+            logger.info("Sending verification email to: {} via SendGrid", toEmail);
 
-            // Create the email with a timeout
-            CompletableFuture<Void> emailTask = CompletableFuture.runAsync(() -> {
-                try {
-                    SimpleMailMessage message = new SimpleMailMessage();
-                    message.setFrom(fromEmail);
-                    message.setTo(toEmail);
-                    message.setSubject("Verify Your Fliora Account");
+            SimpleMailMessage message = new SimpleMailMessage();
+            // Use your domain email or noreply
+            message.setFrom("fliora.app@gmail.com");
+            message.setTo(toEmail);
+            message.setSubject("Verify Your Fliora Account");
 
-                    String verificationUrl = baseUrl + "/api/auth/verify-email?token=" + verificationToken;
+            String verificationUrl = baseUrl + "/api/auth/verify-email?token=" + verificationToken;
+            logger.debug("Verification URL: {}", verificationUrl);
 
-                    String emailBody = String.format(
-                            "Hi %s, \n\n" +
-                                    "Welcome to Fliora! Please verify your email address by clicking the link below:\n\n" +
-                                    "%s\n\n" +
-                                    "This link will expire in 24 hours.\n\n" +
-                                    "If you didn't create this account, please ignore this email.\n\n" +
-                                    "Best regards,\n" +
-                                    "Team Fliora",
-                            username, verificationUrl
-                    );
+            String emailBody = String.format("""
+                Hi %s,
+                
+                Welcome to Fliora! Please verify your email address by clicking the link below:
+                
+                %s
+                
+                This link will expire in 24 hours.
+                
+                If you didn't create this account, please ignore this email.
+                
+                Best regards,
+                Team Fliora
+                """, username, verificationUrl);
 
-                    message.setText(emailBody);
+            message.setText(emailBody);
 
-                    logger.info("Sending email with SMTP settings - Host: {}, Port: 587", "smtp.gmail.com");
-                    mailSender.send(message);
-                    logger.info("Email sent successfully to: {}", toEmail);
+            logger.info("Sending email via SendGrid SMTP...");
+            mailSender.send(message);
+            logger.info("Email sent successfully to: {} via SendGrid", toEmail);
 
-                } catch (Exception e) {
-                    logger.error("SMTP send failed for {}: {}", toEmail, e.getMessage(), e);
-                    throw new RuntimeException("Email send failed", e);
-                }
-            });
-
-            // Wait for completion with timeout
-            emailTask.get(30, TimeUnit.SECONDS);
-
-            logger.info("Verification email sent successfully to: {}", toEmail);
-
-        } catch (TimeoutException e) {
-            logger.error("Email sending timed out for: {} after 30 seconds", toEmail);
-            // Don't throw - let registration continue
+        } catch (org.springframework.mail.MailAuthenticationException e) {
+            logger.error("SendGrid authentication failed - Check API key", e);
+            throw new RuntimeException("Email authentication failed", e);
+        } catch (org.springframework.mail.MailSendException e) {
+            logger.error("SendGrid send failed for {}: {}", toEmail, e.getMessage(), e);
+            throw new RuntimeException("Email send failed", e);
         } catch (Exception e) {
-            logger.error("Failed to send verification email to: {} - Error: {}", toEmail, e.getMessage(), e);
-
-            // Log specific error details for debugging
-            if (e.getCause() != null) {
-                logger.error("Root cause: {}", e.getCause().getMessage());
-            }
-
-            // Don't throw RuntimeException - log the error but allow registration to continue
-            // This prevents email issues from blocking user registration
+            logger.error("Unexpected error sending email to {}: {}", toEmail, e.getMessage(), e);
+            throw new RuntimeException("Email service error", e);
         }
     }
 
