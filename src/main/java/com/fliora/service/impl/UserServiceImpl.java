@@ -51,18 +51,18 @@ public class UserServiceImpl implements UserService {
         String verificationToken = UUID.randomUUID().toString();
         user.setVerificationToken(verificationToken);
 
-        // Save user first
+        // Save user first - this MUST succeed
         User savedUser = userRepository.save(user);
         logger.info("User saved successfully with ID: {}", savedUser.getId());
 
-        // Send email synchronously with SendGrid (it's fast and reliable)
+        // Try to send email but NEVER let it fail the registration
         try {
             emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
             logger.info("Verification email sent successfully to: {}", savedUser.getEmail());
         } catch (Exception e) {
-            logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage());
-            // Don't throw exception - registration should still succeed
-            // User can resend verification email later
+            logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage(), e);
+            // CRITICAL: Do NOT throw any exception here
+            // Registration must succeed even if email fails
         }
 
         return savedUser;
@@ -111,7 +111,7 @@ public class UserServiceImpl implements UserService {
         user.setVerificationToken(newVerificationToken);
         userRepository.save(user);
 
-        // Send email synchronously with SendGrid
+        // For resend, we can throw exception since user explicitly requested email
         try {
             emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
             logger.info("Verification email resent successfully to: {}", email);
