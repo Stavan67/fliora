@@ -15,22 +15,35 @@ public class EmailService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    @Value("${spring.mail.username}")
+    private String mailUsername;
+
+    @Value("${spring.mail.host}")
+    private String mailHost;
+
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
 
     public void sendVerificationEmail(String toEmail, String username, String verificationToken) {
         try {
-            logger.info("Sending verification email to: {} via SendGrid", toEmail);
+            logger.info("=== EMAIL SENDING DEBUG INFO ===");
+            logger.info("To: {}", toEmail);
+            logger.info("Username: {}", username);
+            logger.info("Base URL: {}", baseUrl);
+            logger.info("Mail Host: {}", mailHost);
+            logger.info("Mail Username: {}", mailUsername);
+            logger.info("Token (first 8 chars): {}", verificationToken.substring(0, 8));
 
             SimpleMailMessage message = new SimpleMailMessage();
-            // Use your domain email or noreply
+
+            // CRITICAL: Use the verified sender email from SendGrid
             message.setFrom("fliora.app@gmail.com");
             message.setTo(toEmail);
             message.setSubject("Verify Your Fliora Account");
 
             String verificationUrl = baseUrl + "/api/auth/verify-email?token=" + verificationToken;
-            logger.debug("Verification URL: {}", verificationUrl);
+            logger.info("Full Verification URL: {}", verificationUrl);
 
             String emailBody = String.format("""
                 Hi %s,
@@ -49,19 +62,22 @@ public class EmailService {
 
             message.setText(emailBody);
 
-            logger.info("Sending email via SendGrid SMTP...");
+            logger.info("Attempting to send email via SendGrid SMTP...");
             mailSender.send(message);
-            logger.info("Email sent successfully to: {} via SendGrid", toEmail);
+            logger.info("✅ Email sent successfully to: {}", toEmail);
 
         } catch (org.springframework.mail.MailAuthenticationException e) {
-            logger.error("SendGrid authentication failed - Check API key", e);
-            throw new RuntimeException("Email authentication failed", e);
+            logger.error("❌ SENDGRID AUTH FAILED: {}", e.getMessage());
+            logger.error("Check: 1) API key is correct, 2) fliora.app@gmail.com is verified in SendGrid", e);
+            throw new RuntimeException("Email authentication failed: " + e.getMessage(), e);
         } catch (org.springframework.mail.MailSendException e) {
-            logger.error("SendGrid send failed for {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Email send failed", e);
+            logger.error("❌ SENDGRID SEND FAILED: {}", e.getMessage());
+            logger.error("Full error:", e);
+            throw new RuntimeException("Email send failed: " + e.getMessage(), e);
         } catch (Exception e) {
-            logger.error("Unexpected error sending email to {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Email service error", e);
+            logger.error("❌ UNEXPECTED EMAIL ERROR: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.error("Full error:", e);
+            throw new RuntimeException("Email service error: " + e.getMessage(), e);
         }
     }
 

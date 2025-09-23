@@ -23,8 +23,17 @@ public class SendGridTestController {
     @Value("${spring.mail.host}")
     private String mailHost;
 
+    @Value("${spring.mail.port}")
+    private int mailPort;
+
     @Value("${spring.mail.username}")
     private String mailUsername;
+
+    @Value("${spring.mail.password}")
+    private String mailPassword;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     @GetMapping("/sendgrid-config")
     public ResponseEntity<?> checkSendGridConfig() {
@@ -32,12 +41,20 @@ public class SendGridTestController {
 
         try {
             response.put("mailHost", mailHost);
+            response.put("mailPort", mailPort);
             response.put("mailUsername", mailUsername);
-            response.put("apiKeySet", System.getProperty("spring.mail.password") != null ||
-                    System.getenv("SPRING_MAIL_PASSWORD") != null);
+            response.put("mailPassword", mailPassword != null ? "SET (length: " + mailPassword.length() + ")" : "NOT SET");
+            response.put("baseUrl", baseUrl);
             response.put("isSendGrid", "smtp.sendgrid.net".equals(mailHost));
+            response.put("apiKeyValid", mailPassword != null && mailPassword.startsWith("SG."));
 
-            logger.info("SendGrid config - Host: {}, Username: {}", mailHost, mailUsername);
+            logger.info("=== SENDGRID CONFIG CHECK ===");
+            logger.info("Host: {}", mailHost);
+            logger.info("Port: {}", mailPort);
+            logger.info("Username: {}", mailUsername);
+            logger.info("Password set: {}", mailPassword != null);
+            logger.info("Password starts with SG.: {}", mailPassword != null && mailPassword.startsWith("SG."));
+            logger.info("Base URL: {}", baseUrl);
 
             return ResponseEntity.ok(response);
 
@@ -48,25 +65,27 @@ public class SendGridTestController {
         }
     }
 
-    // TEMPORARY - Remove after testing
     @PostMapping("/sendgrid-email")
     public ResponseEntity<?> testSendGridEmail(@RequestParam String email) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            logger.info("Testing SendGrid email send to: {}", email);
+            logger.info("=== TESTING SENDGRID EMAIL ===");
+            logger.info("Target email: {}", email);
 
             String testToken = UUID.randomUUID().toString();
             emailService.sendVerificationEmail(email, "TestUser", testToken);
 
             response.put("success", true);
             response.put("message", "SendGrid test email sent successfully");
+            response.put("targetEmail", email);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("SendGrid test email failed", e);
+            logger.error("=== SENDGRID EMAIL TEST FAILED ===", e);
             response.put("success", false);
-            response.put("message", "SendGrid test failed: " + e.getMessage());
+            response.put("message", e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
             return ResponseEntity.badRequest().body(response);
         }
     }
