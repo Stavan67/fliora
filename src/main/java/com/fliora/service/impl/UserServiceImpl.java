@@ -5,8 +5,7 @@ import com.fliora.dto.UserRegistrationDto;
 import com.fliora.entity.User;
 import com.fliora.exception.*;
 import com.fliora.repository.UserRepository;
-import com.fliora.service.EmailService;
-import com.fliora.service.SendGridWebApiService;
+import com.fliora.service.SendGridApiService;
 import com.fliora.service.UserService;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -23,15 +22,13 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService; // SMTP fallback
-    private final SendGridWebApiService sendGridWebApiService; // Web API (primary)
+    private final SendGridApiService sendGridApiService;
 
     public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                           EmailService emailService, SendGridWebApiService sendGridWebApiService) {
+                           SendGridApiService sendGridApiService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.emailService = emailService;
-        this.sendGridWebApiService = sendGridWebApiService;
+        this.sendGridApiService = sendGridApiService;
     }
 
     @Override
@@ -59,23 +56,16 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
         logger.info("User saved successfully with ID: {}", savedUser.getId());
 
-        // Try to send email but NEVER let it fail the registration
+        // Try to send email using SendGrid Web API (SMTP doesn't work on Railway)
         try {
             logger.info("Attempting to send verification email via SendGrid Web API...");
-            sendGridWebApiService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
-            logger.info("Verification email sent successfully via Web API to: {}", savedUser.getEmail());
-        } catch (Exception webApiError) {
-            logger.warn("SendGrid Web API failed, trying SMTP fallback: {}", webApiError.getMessage());
-
-            try {
-                emailService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
-                logger.info("Verification email sent successfully via SMTP to: {}", savedUser.getEmail());
-            } catch (Exception smtpError) {
-                logger.error("Both Web API and SMTP failed for email: {} - WebAPI: {}, SMTP: {}",
-                        savedUser.getEmail(), webApiError.getMessage(), smtpError.getMessage());
-                // CRITICAL: Do NOT throw any exception here
-                // Registration must succeed even if email fails
-            }
+            sendGridApiService.sendVerificationEmail(savedUser.getEmail(), savedUser.getUsername(), verificationToken);
+            logger.info("Verification email sent successfully via SendGrid Web API to: {}", savedUser.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to send verification email to: {} - Error: {}", savedUser.getEmail(), e.getMessage(), e);
+            // CRITICAL: Do NOT throw any exception here
+            // Registration must succeed even if email fails
+            logger.warn("Registration completed but email sending failed. User can request email resend later.");
         }
 
         return savedUser;
@@ -124,20 +114,13 @@ public class UserServiceImpl implements UserService {
         user.setVerificationToken(newVerificationToken);
         userRepository.save(user);
 
-        // For resend, try Web API first, then SMTP
+        // For resend, we can throw exception since user explicitly requested email
         try {
-            sendGridWebApiService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
-            logger.info("Verification email resent successfully via Web API to: {}", email);
-        } catch (Exception webApiError) {
-            logger.warn("Web API failed for resend, trying SMTP: {}", webApiError.getMessage());
-
-            try {
-                emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
-                logger.info("Verification email resent successfully via SMTP to: {}", email);
-            } catch (Exception smtpError) {
-                logger.error("Both Web API and SMTP failed for resend to: {}", email);
-                throw new RuntimeException("Failed to send verification email. Please try again later.");
-            }
+            sendGridApiService.sendVerificationEmail(user.getEmail(), user.getUsername(), newVerificationToken);
+            logger.info("Verification email resent successfully via SendGrid Web API to: {}", email);
+        } catch (Exception e) {
+            logger.error("Failed to resend verification email to: {}", email, e);
+            throw new RuntimeException("Failed to send verification email. Please try again later.");
         }
     }
 
