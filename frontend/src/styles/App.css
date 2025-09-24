@@ -135,6 +135,27 @@ code {
     font-weight: 500;
 }
 
+/* Fix for autocomplete glowy white background */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(255, 255, 255, 0.05) inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border: 2px solid rgba(255, 255, 255, 0.12) !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+.form-input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 30px rgba(255, 255, 255, 0.08) inset !important;
+    border-color: #00ffff !important;
+    box-shadow:
+            0 0 0 4px rgba(0, 255, 255, 0.15),
+            0 8px 25px rgba(0, 255, 255, 0.2) !important;
+}
+
 .form-input::placeholder {
     color: rgba(255, 255, 255, 0.5);
     font-weight: 400;

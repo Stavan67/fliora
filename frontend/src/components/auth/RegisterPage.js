@@ -26,24 +26,35 @@ const RegisterPage = () => {
         let score = 0;
         let feedback = [];
 
-        if (password.length >= 8) score++;
-        if (/[a-z]/.test(password)) score++;
-        if (/[A-Z]/.test(password)) score++;
-        if (/\d/.test(password)) score++;
-        if (/[@$!%*?&]/.test(password)) score++;
+        // Check each requirement individually
+        const hasMinLength = password.length >= 8;
+        const hasLowercase = /[a-z]/.test(password);
+        const hasUppercase = /[A-Z]/.test(password);
+        const hasDigit = /\d/.test(password);
+        const hasSpecialChar = /[@$!%*?&]/.test(password);
+
+        if (hasMinLength) score++;
+        if (hasLowercase) score++;
+        if (hasUppercase) score++;
+        if (hasDigit) score++;
+        if (hasSpecialChar) score++;
 
         const strengthLevels = [
             { text: '', color: '' },
             { text: 'Weak', color: '#e74c3c' },
             { text: 'Fair', color: '#f39c12' },
-            { text: 'Good', color: '#27ae60' },
+            { text: 'Good', color: '#f39c12' },
             { text: 'Strong', color: '#27ae60' }
         ];
 
+        // Only show "Strong" if ALL requirements are met (score = 5)
+        const strengthIndex = score === 5 ? 4 : Math.min(score, 3);
+
         return {
             score,
-            text: strengthLevels[score].text || '',
-            color: strengthLevels[score].color || ''
+            text: strengthLevels[strengthIndex].text || '',
+            color: strengthLevels[strengthIndex].color || '',
+            hasAllRequirements: hasMinLength && hasLowercase && hasUppercase && hasDigit && hasSpecialChar
         };
     };
 
@@ -152,7 +163,7 @@ const RegisterPage = () => {
         if (formData.password) {
             setPasswordStrength(checkPasswordStrength(formData.password));
         } else {
-            setPasswordStrength({ score: 0, text: '', color: '' });
+            setPasswordStrength({ score: 0, text: '', color: '', hasAllRequirements: false });
         }
     }, [formData.password]);
 
@@ -191,13 +202,21 @@ const RegisterPage = () => {
             newErrors.email = 'Please Provide A Valid Email Address';
         }
 
-        // Password validation
+        // Password validation - Fixed the regex and logic
         if (!formData.password) {
             newErrors.password = 'Password Is Required';
         } else if (formData.password.length < 8 || formData.password.length > 128) {
             newErrors.password = 'Password Must Be Between 8 And 128 Characters';
-        } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/.test(formData.password)) {
-            newErrors.password = 'Password Must Contain At Least One Lowercase Letter, One Uppercase Letter, One Digit, And One Special Character';
+        } else {
+            // Check each requirement individually
+            const hasLowercase = /[a-z]/.test(formData.password);
+            const hasUppercase = /[A-Z]/.test(formData.password);
+            const hasDigit = /\d/.test(formData.password);
+            const hasSpecialChar = /[@$!%*?&]/.test(formData.password);
+
+            if (!hasLowercase || !hasUppercase || !hasDigit || !hasSpecialChar) {
+                newErrors.password = 'Password Must Contain At Least One Lowercase Letter, One Uppercase Letter, One Digit, And One Special Character (@$!%*?&)';
+            }
         }
 
         // Confirm password validation
@@ -323,7 +342,8 @@ const RegisterPage = () => {
                                 onChange={handleChange}
                                 className={`form-input ${errors.username ? 'error' :
                                     availability.username.status === 'available' ? 'success' : ''}`}
-                                placeholder="Choose a unique username"
+                                placeholder="Choose A Unique Username"
+                                autoComplete="username"
                             />
                             {formData.username && (
                                 <span className={`availability-indicator ${availability.username.status}`}>
@@ -355,6 +375,7 @@ const RegisterPage = () => {
                                 className={`form-input ${errors.email ? 'error' :
                                     availability.email.status === 'available' ? 'success' : ''}`}
                                 placeholder="Enter Your Email Address"
+                                autoComplete="email"
                             />
                             {formData.email && (
                                 <span className={`availability-indicator ${availability.email.status}`}>
@@ -381,6 +402,7 @@ const RegisterPage = () => {
                             onChange={handleChange}
                             className={`form-input ${errors.password ? 'error' : ''}`}
                             placeholder="Create A Strong Password"
+                            autoComplete="new-password"
                         />
                         {formData.password && passwordStrength.text && (
                             <div className="password-strength">
@@ -397,7 +419,7 @@ const RegisterPage = () => {
                             <span className="error-message">{errors.password}</span>
                         )}
                         <div className="password-requirements">
-                            <small>Must Contain: Lowercase, Uppercase, Number, And Special Character</small>
+                            <small>Must Contain: Lowercase, Uppercase, Number, And Special Character (@$!%*?&)</small>
                         </div>
                     </div>
 
@@ -413,7 +435,8 @@ const RegisterPage = () => {
                             onChange={handleChange}
                             className={`form-input ${errors.confirmPassword ? 'error' :
                                 formData.confirmPassword && formData.password === formData.confirmPassword ? 'success' : ''}`}
-                            placeholder="Confirm your password"
+                            placeholder="Confirm Your Password"
+                            autoComplete="new-password"
                         />
                         {errors.confirmPassword && (
                             <span className="error-message">{errors.confirmPassword}</span>
