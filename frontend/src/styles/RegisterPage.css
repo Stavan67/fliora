@@ -7,26 +7,23 @@
     letter-spacing: 0.3px;
 }
 
-/* Availability indicator styles */
 .input-with-availability {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    display: block;
     width: 100%;
 }
 
+/* Ensure input field comes first */
 .input-with-availability .form-input {
-    order: 1;
+    display: block;
+    width: 100%;
     margin-bottom: 0;
 }
 
 .availability-indicator {
-    position: static;
-    transform: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
+    /* Force it to always be a block element below the input */
+    display: block;
+    width: fit-content;
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.3px;
@@ -34,9 +31,10 @@
     border-radius: 8px;
     backdrop-filter: blur(10px);
     margin-top: 8px;
-    width: fit-content;
-    min-height: 32px;
-    order: 2;
+    /* Prevent any positioning issues */
+    position: relative;
+    clear: both;
+    float: none;
 }
 
 .availability-indicator.checking {
