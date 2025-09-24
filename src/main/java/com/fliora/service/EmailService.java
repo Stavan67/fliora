@@ -67,15 +67,15 @@ public class EmailService {
             logger.info("✅ Email sent successfully to: {}", toEmail);
 
         } catch (org.springframework.mail.MailAuthenticationException e) {
-            logger.error("❌ SENDGRID AUTH FAILED: {}", e.getMessage());
+            logger.error("SENDGRID AUTH FAILED: {}", e.getMessage());
             logger.error("Check: 1) API key is correct, 2) fliora.app@gmail.com is verified in SendGrid", e);
             throw new RuntimeException("Email authentication failed: " + e.getMessage(), e);
         } catch (org.springframework.mail.MailSendException e) {
-            logger.error("❌ SENDGRID SEND FAILED: {}", e.getMessage());
+            logger.error("SENDGRID SEND FAILED: {}", e.getMessage());
             logger.error("Full error:", e);
             throw new RuntimeException("Email send failed: " + e.getMessage(), e);
         } catch (Exception e) {
-            logger.error("❌ UNEXPECTED EMAIL ERROR: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            logger.error("UNEXPECTED EMAIL ERROR: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             logger.error("Full error:", e);
             throw new RuntimeException("Email service error: " + e.getMessage(), e);
         }

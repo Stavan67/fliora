@@ -18,7 +18,7 @@ const RegisterPage = () => {
     });
     const [showSuccess, setShowSuccess] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState('');
-    const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '' });
+    const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '', color: '' });
 
     const navigate = useNavigate();
 
@@ -32,15 +32,51 @@ const RegisterPage = () => {
         if (/\d/.test(password)) score++;
         if (/[@$!%*?&]/.test(password)) score++;
 
-        const strengthLevels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+        const strengthLevels = [
+            { text: '', color: '' },
+            { text: 'Weak', color: '#e74c3c' },
+            { text: 'Fair', color: '#f39c12' },
+            { text: 'Good', color: '#27ae60' },
+            { text: 'Strong', color: '#27ae60' }
+        ];
+
         return {
             score,
-            text: strengthLevels[score] || ''
+            text: strengthLevels[score].text || '',
+            color: strengthLevels[score].color || ''
         };
+    };
+
+    const isValidEmail = (email) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const isValidUsername = (username) => {
+        return username.length >= 3 && username.length <= 15 && /^[a-zA-Z0-9_]+$/.test(username);
     };
 
     const checkAvailability = async (type, value) => {
         if (!value.trim()) return;
+
+        // Client-side validation first
+        if (type === 'username') {
+            if (!isValidUsername(value)) {
+                setAvailability(prev => ({
+                    ...prev,
+                    username: { status: 'unavailable', message: 'Unavailable' }
+                }));
+                return;
+            }
+        } else if (type === 'email') {
+            if (!isValidEmail(value)) {
+                setAvailability(prev => ({
+                    ...prev,
+                    email: { status: 'unavailable', message: 'Unavailable' }
+                }));
+                return;
+            }
+        }
 
         console.log(`🔍 Checking availability for ${type}: ${value}`);
 
@@ -53,13 +89,25 @@ const RegisterPage = () => {
             const response = await authService.checkAvailability(type, value);
             console.log(`✅ Availability response for ${type}:`, response);
 
-            setAvailability(prev => ({
-                ...prev,
-                [type]: {
-                    status: response.available ? 'available' : 'unavailable',
-                    message: response.available ? 'Available' : `${type} already taken`
-                }
-            }));
+            if (response.available) {
+                setAvailability(prev => ({
+                    ...prev,
+                    [type]: {
+                        status: 'available',
+                        message: 'Available'
+                    }
+                }));
+            } else {
+                // Handle specific case for email already registered
+                const message = type === 'email' ? 'Email already registered' : 'Unavailable';
+                setAvailability(prev => ({
+                    ...prev,
+                    [type]: {
+                        status: 'unavailable',
+                        message: message
+                    }
+                }));
+            }
         } catch (error) {
             console.error(`❌ Availability check failed for ${type}:`, error);
             console.error('Error details:', {
@@ -82,10 +130,8 @@ const RegisterPage = () => {
     // Debounced availability check
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (formData.username && formData.username.length >= 3) {
+            if (formData.username && formData.username.length >= 1) {
                 checkAvailability('username', formData.username);
-            } else if (formData.username && formData.username.length > 0) {
-                console.log('⚠️ Username too short for check:', formData.username);
             }
         }, 500);
 
@@ -94,10 +140,8 @@ const RegisterPage = () => {
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            if (formData.email && formData.email.includes('@')) {
+            if (formData.email && formData.email.length >= 1) {
                 checkAvailability('email', formData.email);
-            } else if (formData.email && formData.email.length > 0) {
-                console.log('⚠️ Email invalid for check:', formData.email);
             }
         }, 500);
 
@@ -108,7 +152,7 @@ const RegisterPage = () => {
         if (formData.password) {
             setPasswordStrength(checkPasswordStrength(formData.password));
         } else {
-            setPasswordStrength({ score: 0, text: '' });
+            setPasswordStrength({ score: 0, text: '', color: '' });
         }
     }, [formData.password]);
 
@@ -133,42 +177,44 @@ const RegisterPage = () => {
 
         // Username validation
         if (!formData.username.trim()) {
-            newErrors.username = 'Username is required';
-        } else if (formData.username.length < 3 || formData.username.length > 50) {
-            newErrors.username = 'Username must be between 3 and 50 characters';
+            newErrors.username = 'Username Is Required';
+        } else if (formData.username.length < 3 || formData.username.length > 15) {
+            newErrors.username = 'Username Must Be Between 3 And 15 Characters';
         } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
-            newErrors.username = 'Username can only contain letters, numbers and underscores';
+            newErrors.username = 'Username Can Only Contain Letters, Numbers And Underscores';
         }
 
         // Email validation
         if (!formData.email.trim()) {
-            newErrors.email = 'Email is required';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Please provide a valid email address';
+            newErrors.email = 'Email Is Required';
+        } else if (!isValidEmail(formData.email)) {
+            newErrors.email = 'Please Provide A Valid Email Address';
         }
 
         // Password validation
         if (!formData.password) {
-            newErrors.password = 'Password is required';
+            newErrors.password = 'Password Is Required';
         } else if (formData.password.length < 8 || formData.password.length > 128) {
-            newErrors.password = 'Password must be between 8 and 128 characters';
+            newErrors.password = 'Password Must Be Between 8 And 128 Characters';
         } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/.test(formData.password)) {
-            newErrors.password = 'Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character';
+            newErrors.password = 'Password Must Contain At Least One Lowercase Letter, One Uppercase Letter, One Digit, And One Special Character';
         }
 
         // Confirm password validation
         if (!formData.confirmPassword) {
-            newErrors.confirmPassword = 'Confirm password is required';
+            newErrors.confirmPassword = 'Confirm Password Is Required';
         } else if (formData.password !== formData.confirmPassword) {
-            newErrors.confirmPassword = 'Passwords do not match';
+            newErrors.confirmPassword = 'Passwords Do Not Match';
         }
 
         // Check availability
         if (availability.username.status === 'unavailable') {
-            newErrors.username = 'Username is not available';
+            newErrors.username = 'Username Is Not Available';
         }
         if (availability.email.status === 'unavailable') {
-            newErrors.email = 'Email is already registered';
+            newErrors.email = availability.email.message === 'Email Already Registered'
+                ? 'Email Is Already Registered'
+                : 'Email Is Not Available';
         }
 
         return newErrors;
@@ -194,13 +240,13 @@ const RegisterPage = () => {
                 setShowSuccess(true);
             }
         } catch (error) {
-            console.error('Registration error:', error);
+            console.error('Registration Error:', error);
 
             if (error.errors) {
                 setErrors(error.errors);
             } else {
                 setErrors({
-                    general: error.message || 'Registration failed. Please try again.'
+                    general: error.message || 'Registration Failed. Please Try Again.'
                 });
             }
         } finally {
@@ -216,18 +262,18 @@ const RegisterPage = () => {
                         <div className="verification-icon success">✅</div>
                         <h2 className="verification-title">Registration Successful!</h2>
                         <p className="verification-description">
-                            We've sent a verification email to <strong>{registeredEmail}</strong>.
-                            Please check your inbox and click the verification link to activate your account.
+                            We've Sent A Verification Email To <strong>{registeredEmail}</strong>.
+                            Please Check Your Inbox And Click The Verification Link To Activate Your Account.
                         </p>
-                        <div>
+                        <div className="verification-buttons">
                             <button
                                 className="resend-btn"
                                 onClick={async () => {
                                     try {
                                         await authService.resendVerificationEmail(registeredEmail);
-                                        alert('Verification email sent!');
+                                        alert('Verification Email Sent!');
                                     } catch (error) {
-                                        alert('Failed to send email: ' + error.message);
+                                        alert('Failed To Send Email: ' + error.message);
                                     }
                                 }}
                             >
@@ -237,7 +283,7 @@ const RegisterPage = () => {
                                 className="back-btn"
                                 onClick={() => navigate('/login')}
                             >
-                                Go to Login
+                                Go To Login
                             </button>
                         </div>
                     </div>
@@ -249,8 +295,13 @@ const RegisterPage = () => {
     return (
         <div className="auth-page">
             <div className="form-container">
-                <h2 className="form-title">Join Fliora</h2>
-                <p className="register-subtitle">Create your account to get started</p>
+                <div className="brand-section">
+                    <h1 className="brand-title">Fliora</h1>
+                    <p className="brand-tagline">Stream Movies Together</p>
+                </div>
+
+                <h2 className="form-title">Create Account</h2>
+                <p className="register-subtitle">Join The Ultimate Movie Streaming Experience With Your Friends</p>
 
                 {errors.general && (
                     <div className="alert error">
@@ -272,19 +323,22 @@ const RegisterPage = () => {
                                 onChange={handleChange}
                                 className={`form-input ${errors.username ? 'error' :
                                     availability.username.status === 'available' ? 'success' : ''}`}
-                                placeholder="Choose a username"
+                                placeholder="Choose a unique username"
                             />
                             {formData.username && (
                                 <span className={`availability-indicator ${availability.username.status}`}>
-                  {availability.username.message}
+                                    {availability.username.message}
                                     {availability.username.status === 'available' && <span className="checkmark">✓</span>}
                                     {availability.username.status === 'unavailable' && <span className="checkmark">✗</span>}
-                </span>
+                                </span>
                             )}
                         </div>
                         {errors.username && (
                             <span className="error-message">{errors.username}</span>
                         )}
+                        <div className="field-hint">
+                            <small>3-15 Characters, Letters, Numbers And Underscores Only</small>
+                        </div>
                     </div>
 
                     <div className="form-group">
@@ -300,14 +354,14 @@ const RegisterPage = () => {
                                 onChange={handleChange}
                                 className={`form-input ${errors.email ? 'error' :
                                     availability.email.status === 'available' ? 'success' : ''}`}
-                                placeholder="Enter your email address"
+                                placeholder="Enter Your Email Address"
                             />
-                            {formData.email && formData.email.includes('@') && (
+                            {formData.email && (
                                 <span className={`availability-indicator ${availability.email.status}`}>
-                  {availability.email.message}
+                                    {availability.email.message}
                                     {availability.email.status === 'available' && <span className="checkmark">✓</span>}
                                     {availability.email.status === 'unavailable' && <span className="checkmark">✗</span>}
-                </span>
+                                </span>
                             )}
                         </div>
                         {errors.email && (
@@ -326,13 +380,16 @@ const RegisterPage = () => {
                             value={formData.password}
                             onChange={handleChange}
                             className={`form-input ${errors.password ? 'error' : ''}`}
-                            placeholder="Create a strong password"
+                            placeholder="Create A Strong Password"
                         />
-                        {formData.password && (
+                        {formData.password && passwordStrength.text && (
                             <div className="password-strength">
-                                <div className={`password-strength-bar ${passwordStrength.text.toLowerCase()}`}></div>
-                                <div className={`password-strength-text ${passwordStrength.text.toLowerCase()}`}>
-                                    {passwordStrength.text && `Password strength: ${passwordStrength.text}`}
+                                <div className={`password-strength-bar strength-${passwordStrength.score}`}></div>
+                                <div
+                                    className="password-strength-text"
+                                    style={{ color: passwordStrength.color }}
+                                >
+                                    Password strength: {passwordStrength.text}
                                 </div>
                             </div>
                         )}
@@ -340,7 +397,7 @@ const RegisterPage = () => {
                             <span className="error-message">{errors.password}</span>
                         )}
                         <div className="password-requirements">
-                            <small>Password must contain: lowercase, uppercase, number, and special character</small>
+                            <small>Must Contain: Lowercase, Uppercase, Number, And Special Character</small>
                         </div>
                     </div>
 
@@ -377,7 +434,7 @@ const RegisterPage = () => {
                 </form>
 
                 <div className="form-footer">
-                    Already have an account? <Link to="/login" className="form-link">Sign in here</Link>
+                    Already Have An Account? <Link to="/login" className="form-link">Sign In Here</Link>
                 </div>
             </div>
         </div>

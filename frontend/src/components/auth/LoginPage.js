@@ -35,11 +35,11 @@ const LoginPage = ({ onLogin }) => {
         const newErrors = {};
 
         if(!formData.usernameOrEmail.trim()) {
-            newErrors.usernameOrEmail = 'Username or email is required';
+            newErrors.usernameOrEmail = 'Username Or Email Is Required';
         }
 
         if(!formData.password.trim()) {
-            newErrors.password = 'Password is required';
+            newErrors.password = 'Password Is Required';
         }
 
         return newErrors;
@@ -87,7 +87,7 @@ const LoginPage = ({ onLogin }) => {
                         <div className="verification-icon">📧</div>
                         <h2 className="verification-title">Email Verification Required</h2>
                         <p className="verification-description">
-                            Please verify your email address before logging in. Check your inbox for a verification link.
+                            Please Verify Your Email Address Before Logging In. Check Your Inbox For A Verification Link.
                         </p>
                         <div>
                             <button
@@ -95,9 +95,9 @@ const LoginPage = ({ onLogin }) => {
                                 onClick={async () => {
                                     try {
                                         await authService.resendVerificationEmail(userEmail);
-                                        alert('Verification email send!');
+                                        alert('Verification Email Send!');
                                 } catch (error) {
-                                        alert('Failed to send email: ' + error.message);
+                                        alert('Failed To Send Email: ' + error.message);
                                     }
                                 }}
                             >
@@ -120,7 +120,7 @@ const LoginPage = ({ onLogin }) => {
         <div className="auth-page">
             <div className="form-container">
                 <h2 className="form-title">Welcome Back</h2>
-                <p className="login-subtitle">Sign in to your Fliora account</p>
+                <p className="login-subtitle">Sign In To Your Fliora Account</p>
 
                 {errors.general && (
                     <div className="alert error">
@@ -131,7 +131,7 @@ const LoginPage = ({ onLogin }) => {
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label htmlFor="usernameOrEmail" className="form-label">
-                            Username or Email
+                            Username Or Email
                         </label>
                         <input
                             type="text"
@@ -140,7 +140,7 @@ const LoginPage = ({ onLogin }) => {
                             value={formData.usernameOrEmail}
                             onChange={handleChange}
                             className={`form-input ${errors.usernameOrEmail ? 'error' : ''}`}
-                            placeholder="Enter your username or email"
+                            placeholder="Enter Your Username Or Email"
                         />
                         {errors.usernameOrEmail && (
                             <span className="error-message">{errors.usernameOrEmail}</span>
@@ -158,7 +158,7 @@ const LoginPage = ({ onLogin }) => {
                             value={formData.password}
                             onChange={handleChange}
                             className={`form-input ${errors.password ? 'error' : ''}`}
-                            placeholder="Enter your password"
+                            placeholder="Enter Your Password"
                         />
                         {errors.password && (
                             <span className="error-message">{errors.password}</span>
@@ -176,7 +176,7 @@ const LoginPage = ({ onLogin }) => {
                 </form>
 
                 <div className="form-footer">
-                    Don't have an account? <Link to="/register" className="form-link">Sign up here</Link>
+                    Don't Have An Account? <Link to="/register" className="form-link">Sign Up Here</Link>
                 </div>
             </div>
         </div>
