@@ -40,6 +40,9 @@ const RegisterPage = () => {
         if (hasDigit) score++;
         if (hasSpecialChar) score++;
 
+        // Check if ALL requirements are met
+        const hasAllRequirements = hasMinLength && hasLowercase && hasUppercase && hasDigit && hasSpecialChar;
+
         const strengthLevels = [
             { text: '', color: '', index: 0 },
             { text: 'Weak', color: '#e74c3c', index: 1 },
@@ -48,15 +51,19 @@ const RegisterPage = () => {
             { text: 'Strong', color: '#27ae60', index: 4 }
         ];
 
-        // Fix: Cap the score at 4 for CSS classes (strength-1 to strength-4)
-        const displayScore = Math.min(score, 4);
+        // Only show "Strong" if ALL requirements are met
+        let displayScore = Math.min(score, 4);
+        if (!hasAllRequirements && displayScore === 4) {
+            displayScore = 3; // Cap at "Good" if not all requirements are met
+        }
+
         const strengthData = strengthLevels[displayScore];
 
         return {
-            score: displayScore, // Use capped score for CSS classes
+            score: displayScore,
             text: strengthData.text || '',
             color: strengthData.color || '',
-            hasAllRequirements: hasMinLength && hasLowercase && hasUppercase && hasDigit && hasSpecialChar
+            hasAllRequirements: hasAllRequirements
         };
     };
 

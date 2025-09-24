@@ -11,23 +11,24 @@
 .input-with-availability {
     position: relative;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
 }
 
 .availability-indicator {
-    position: absolute;
-    right: 16px;
-    top: 50%;
-    transform: translateY(-50%);
+    position: static;
+    transform: none;
     display: inline-flex;
     align-items: center;
+    justify-content: flex-start;
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.3px;
-    padding: 4px 8px;
-    border-radius: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
     backdrop-filter: blur(10px);
-    z-index: 2;
+    margin-top: 8px;
+    width: fit-content;
 }
 
 .availability-indicator.checking {
