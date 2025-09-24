@@ -19,12 +19,13 @@ const RegisterPage = () => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [registeredEmail, setRegisteredEmail] = useState('');
     const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '', color: '' });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const navigate = useNavigate();
 
     const checkPasswordStrength = (password) => {
         let score = 0;
-        let feedback = [];
 
         // Check each requirement individually
         const hasMinLength = password.length >= 8;
@@ -40,20 +41,21 @@ const RegisterPage = () => {
         if (hasSpecialChar) score++;
 
         const strengthLevels = [
-            { text: '', color: '' },
-            { text: 'Weak', color: '#e74c3c' },
-            { text: 'Fair', color: '#f39c12' },
-            { text: 'Good', color: '#f39c12' },
-            { text: 'Strong', color: '#27ae60' }
+            { text: '', color: '', index: 0 },
+            { text: 'Weak', color: '#e74c3c', index: 1 },
+            { text: 'Fair', color: '#f39c12', index: 2 },
+            { text: 'Good', color: '#f39c12', index: 3 },
+            { text: 'Strong', color: '#27ae60', index: 4 }
         ];
 
-        // Only show "Strong" if ALL requirements are met (score = 5)
-        const strengthIndex = score === 5 ? 4 : Math.min(score, 3);
+        // Fix: Cap the score at 4 for CSS classes (strength-1 to strength-4)
+        const displayScore = Math.min(score, 4);
+        const strengthData = strengthLevels[displayScore];
 
         return {
-            score,
-            text: strengthLevels[strengthIndex].text || '',
-            color: strengthLevels[strengthIndex].color || '',
+            score: displayScore, // Use capped score for CSS classes
+            text: strengthData.text || '',
+            color: strengthData.color || '',
             hasAllRequirements: hasMinLength && hasLowercase && hasUppercase && hasDigit && hasSpecialChar
         };
     };
@@ -180,6 +182,14 @@ const RegisterPage = () => {
                 ...prev,
                 [name]: ''
             }));
+        }
+    };
+
+    const togglePasswordVisibility = (field) => {
+        if (field === 'password') {
+            setShowPassword(!showPassword);
+        } else if (field === 'confirmPassword') {
+            setShowConfirmPassword(!showConfirmPassword);
         }
     };
 
@@ -342,7 +352,7 @@ const RegisterPage = () => {
                                 onChange={handleChange}
                                 className={`form-input ${errors.username ? 'error' :
                                     availability.username.status === 'available' ? 'success' : ''}`}
-                                placeholder="Choose A Unique Username"
+                                placeholder="Choose a unique username"
                                 autoComplete="username"
                             />
                             {formData.username && (
@@ -374,7 +384,7 @@ const RegisterPage = () => {
                                 onChange={handleChange}
                                 className={`form-input ${errors.email ? 'error' :
                                     availability.email.status === 'available' ? 'success' : ''}`}
-                                placeholder="Enter Your Email Address"
+                                placeholder="Enter your email address"
                                 autoComplete="email"
                             />
                             {formData.email && (
@@ -394,16 +404,36 @@ const RegisterPage = () => {
                         <label htmlFor="password" className="form-label">
                             Password
                         </label>
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            className={`form-input ${errors.password ? 'error' : ''}`}
-                            placeholder="Create A Strong Password"
-                            autoComplete="new-password"
-                        />
+                        <div className="password-input-container">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                id="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                className={`form-input ${errors.password ? 'error' : ''}`}
+                                placeholder="Create a strong password"
+                                autoComplete="new-password"
+                            />
+                            <button
+                                type="button"
+                                className="password-toggle-btn"
+                                onClick={() => togglePasswordVisibility('password')}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                                {showPassword ? (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                ) : (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
                         {formData.password && passwordStrength.text && (
                             <div className="password-strength">
                                 <div className={`password-strength-bar strength-${passwordStrength.score}`}></div>
@@ -411,7 +441,7 @@ const RegisterPage = () => {
                                     className="password-strength-text"
                                     style={{ color: passwordStrength.color }}
                                 >
-                                    Password strength: {passwordStrength.text}
+                                    Password Strength: {passwordStrength.text}
                                 </div>
                             </div>
                         )}
@@ -427,17 +457,37 @@ const RegisterPage = () => {
                         <label htmlFor="confirmPassword" className="form-label">
                             Confirm Password
                         </label>
-                        <input
-                            type="password"
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            className={`form-input ${errors.confirmPassword ? 'error' :
-                                formData.confirmPassword && formData.password === formData.confirmPassword ? 'success' : ''}`}
-                            placeholder="Confirm Your Password"
-                            autoComplete="new-password"
-                        />
+                        <div className="password-input-container">
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                className={`form-input ${errors.confirmPassword ? 'error' :
+                                    formData.confirmPassword && formData.password === formData.confirmPassword ? 'success' : ''}`}
+                                placeholder="Confirm your password"
+                                autoComplete="new-password"
+                            />
+                            <button
+                                type="button"
+                                className="password-toggle-btn"
+                                onClick={() => togglePasswordVisibility('confirmPassword')}
+                                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                            >
+                                {showConfirmPassword ? (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                                    </svg>
+                                ) : (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
                         {errors.confirmPassword && (
                             <span className="error-message">{errors.confirmPassword}</span>
                         )}
