@@ -34,7 +34,7 @@ const Dashboard = ({user, onLogout }) => {
 
     useEffect(() => {
         if(currentView === 'waiting-room') {
-            intializeMedia();
+            initializeMedia();
             connectWebSocket();
         }
         return () => {
@@ -47,7 +47,7 @@ const Dashboard = ({user, onLogout }) => {
         };
     }, [currentView]);
 
-    const connectWebSoocket = () => {
+    const connectWebSocket = () => {
         if(!roomData) return;
 
         const socket = new SockJS('/ws');
