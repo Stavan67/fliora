@@ -119,7 +119,7 @@ public class RoomController {
 
     @PostMapping("/{roomCode}/kick/{participantId}")
     public ResponseEntity<?> kickParticipant(@PathVariable String roomCode,
-                                             @PathVariable Long participantId,
+                                             @PathVariable UUID participantId,
                                              HttpServletRequest httpRequest) {
         try {
             User hostUser = getCurrentUser(httpRequest);
