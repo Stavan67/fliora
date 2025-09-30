@@ -44,6 +44,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
 
+                    // WebSocket endpoint
+                    auth.requestMatchers("/ws/**").permitAll();
+
                     // Test endpoints for debugging
                     auth.requestMatchers("/api/test/**").permitAll();
 
@@ -63,6 +66,9 @@ public class SecurityConfig {
                     // Everything else requires authentication
                     auth.anyRequest().authenticated();
                 })
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.IF_REQUIRED)
+                )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 .build();
