@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.fliora.FlioraApplicationTests
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.00 s -- in com.fliora.FlioraApplicationTests
