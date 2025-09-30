@@ -38,19 +38,39 @@ public class RoomService {
     }
 
     public Room createRoom(User hostUser, String roomName) {
-        List<Room> activeRooms = roomRepository.findActiveRoomsByHost(hostUser);
-        if(!activeRooms.isEmpty()) {
-            throw new RuntimeException("You already have an active room. Please end it before creating a new one.");
+        try {
+            System.out.println("=== ROOM SERVICE CREATE ROOM ===");
+            System.out.println("Host user: " + hostUser.getUsername() + " (ID: " + hostUser.getId() + ")");
+
+            List<Room> activeRooms = roomRepository.findActiveRoomsByHost(hostUser);
+            System.out.println("Active rooms found: " + activeRooms.size());
+
+            if(!activeRooms.isEmpty()) {
+                throw new RuntimeException("You already have an active room. Please end it before creating a new one.");
+            }
+
+            String roomCode = generateUniqueRoomCode();
+            System.out.println("Generated room code: " + roomCode);
+
+            Room room = new Room(roomCode, roomName, hostUser);
+            System.out.println("Room entity created, saving to database...");
+
+            room = roomRepository.save(room);
+            System.out.println("Room saved with ID: " + room.getId());
+
+            System.out.println("Creating host participant...");
+            RoomParticipant hostParticipant = new RoomParticipant(room, hostUser, ParticipantRole.HOST);
+            hostParticipant = participantRepository.save(hostParticipant);
+            System.out.println("Host participant saved with ID: " + hostParticipant.getId());
+
+            return room;
+        } catch (Exception e) {
+            System.err.println("=== ERROR IN ROOM SERVICE ===");
+            System.err.println("Error type: " + e.getClass().getName());
+            System.err.println("Error message: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
-        String roomCode = generateUniqueRoomCode();
-        Room room = new Room(roomCode, roomName, hostUser);
-        room = roomRepository.save(room);
-
-        RoomParticipant hostParticipant = new RoomParticipant(room, hostUser, ParticipantRole.HOST);
-        participantRepository.save(hostParticipant);
-
-        return room;
     }
 
     public Room joinRoom(String roomCode, User user){

@@ -33,9 +33,24 @@ public class RoomController {
     @PostMapping("/create")
     public ResponseEntity<?> createRoom(@RequestBody Map<String, String> request, HttpServletRequest httpRequest) {
         try {
+            HttpSession session = httpRequest.getSession(false);
+            System.out.println("Session exists: " + (session != null));
+
+            if (session != null) {
+                Object userIdObj = session.getAttribute("userId");
+                System.out.println("UserId in session: " + userIdObj);
+                System.out.println("Session ID: " + session.getId());
+            }
+
             User user = getCurrentUser(httpRequest);
+            System.out.println("Current user retrieved: " + user.getUsername() + " (ID: " + user.getId() + ")");
+
             String roomName = request.getOrDefault("roomName", user.getUsername() + "'s Room");
+            System.out.println("Creating room with name: " + roomName);
+
             Room room = roomService.createRoom(user, roomName);
+            System.out.println("Room created successfully: " + room.getRoomCode());
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Room created successfully");
@@ -43,6 +58,10 @@ public class RoomController {
 
             return ResponseEntity.ok(response);
         } catch(Exception e){
+            System.err.println("=== ERROR IN CREATE ROOM ===");
+            System.err.println("Error type: " + e.getClass().getName());
+            System.err.println("Error message: " + e.getMessage());
+            e.printStackTrace();
             return buildErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }

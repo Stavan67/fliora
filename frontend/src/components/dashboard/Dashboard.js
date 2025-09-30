@@ -144,10 +144,19 @@ const Dashboard = ({user, onLogout }) => {
 
     const handleCreateRoom = async () => {
         setLoading(true);
+        setError('');
         try {
+            console.log('=== FRONTEND: Creating room ===');
+            console.log('Current user:', user);
+            console.log('API Base URL:', apiClient.defaults.baseURL);
+
             const response = await apiClient.post('/api/rooms/create', {
                 roomName: `${user.username}'s Room`
             });
+
+            console.log('=== FRONTEND: Room creation response ===');
+            console.log('Response:', response.data);
+
             const room = response.data.room;
             setRoomData(room);
             setIsHost(room.isHost);
@@ -156,7 +165,15 @@ const Dashboard = ({user, onLogout }) => {
             await loadParticipants(room.roomCode);
             addSystemMessage(`Room ${room.roomCode} created successfully! Share the link to invite friends.`);
         } catch(err){
-            setError(err.response?.data?.message || 'Failed to create room. Please try again.');
+            console.error('=== FRONTEND: Room creation error ===');
+            console.error('Error:', err);
+            console.error('Error response:', err.response);
+            console.error('Error data:', err.response?.data);
+            console.error('Error status:', err.response?.status);
+            console.error('Error message:', err.message);
+
+            const errorMessage = err.response?.data?.message || 'Failed to create room. Please try again.';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
