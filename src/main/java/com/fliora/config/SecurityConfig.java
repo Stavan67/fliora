@@ -40,27 +40,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> {
-                    // Auth endpoints - MUST be first
                     auth.requestMatchers("/api/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
-
-                    // WebSocket endpoint
                     auth.requestMatchers("/ws/**").permitAll();
-
-                    // Test endpoints for debugging
                     auth.requestMatchers("/api/test/**").permitAll();
-
-                    // Health check endpoints
                     auth.requestMatchers("/actuator/health", "/api/health").permitAll();
-
-                    // Static resources - be more specific and permissive
                     auth.requestMatchers("/", "/index.html").permitAll();
                     auth.requestMatchers("/static/**").permitAll();
                     auth.requestMatchers("/*.js", "/*.css", "/*.ico", "/*.png", "/*.jpg", "/*.jpeg", "/*.gif", "/*.svg").permitAll();
                     auth.requestMatchers("/manifest.json", "/robots.txt", "/favicon.ico").permitAll();
                     auth.requestMatchers("/login", "/register", "/verify-email").permitAll();
-
-                    // Error page
                     auth.requestMatchers("/error").permitAll();
 
                     // Everything else requires authentication
@@ -68,6 +57,8 @@ public class SecurityConfig {
                 })
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
