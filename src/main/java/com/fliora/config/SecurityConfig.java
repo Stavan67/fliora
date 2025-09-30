@@ -72,17 +72,14 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "https://leopicks.com",
                 "https://www.leopicks.com",
-                "http://leopicks.com",
-                "http://www.leopicks.com",
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3000"
+                "http://localhost:3000"
         ));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie")); // Add this
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

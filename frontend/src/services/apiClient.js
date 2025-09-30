@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Use the same domain for API calls (since both frontend and backend are on Railway)
 const API_BASE_URL = process.env.NODE_ENV === 'production'
-    ? window.location.origin  // Same domain as the frontend
+    ? ''
     : 'http://localhost:8080';
 
 const apiClient = axios.create({
