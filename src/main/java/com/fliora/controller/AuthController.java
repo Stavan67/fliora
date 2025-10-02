@@ -13,8 +13,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,7 +61,7 @@ public class AuthController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", e.getMessage());
-            response.put("error", e.getClass().getSimpleName()); // Add error type for debugging
+            response.put("error", e.getClass().getSimpleName());
 
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
@@ -69,12 +74,22 @@ public class AuthController {
 
             User user = userService.authenticateUser(loginDto);
 
+            // Create Spring Security authentication token
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(user, null, new ArrayList<>());
+
+            // Set it in SecurityContext
+            SecurityContext securityContext = SecurityContextHolder.getContext();
+            securityContext.setAuthentication(authToken);
+
+            // Create session and store security context
             HttpSession session = request.getSession(true);
+            session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
             session.setAttribute("userId", user.getId());
             session.setAttribute("username", user.getUsername());
             session.setMaxInactiveInterval(30*60);
 
-            logger.info("Login successful for user: {}", user.getUsername());
+            logger.info("Login successful for user: {} with session: {}", user.getUsername(), session.getId());
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -103,6 +118,8 @@ public class AuthController {
             session.invalidate();
             logger.info("User logged out successfully");
         }
+
+        SecurityContextHolder.clearContext();
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
