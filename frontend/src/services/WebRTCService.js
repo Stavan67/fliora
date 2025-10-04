@@ -8,7 +8,8 @@ class WebRTCService {
         this.onRemoteStream = null;
         this.onParticipantLeft = null;
         this.pendingCandidates = new Map();
-        this.existingParticipants = new Set(); // Track who we've already connected to
+        this.existingParticipants = new Set();
+        this.initiatedConnections = new Set(); // Track who we've initiated with
 
         this.configuration = {
             iceServers: [
@@ -98,6 +99,8 @@ class WebRTCService {
                 from: this.currentUserId,
                 to: participantId
             });
+
+            this.initiatedConnections.add(participantId);
         } catch (error) {
             console.error('Error creating offer:', error);
         }
@@ -121,15 +124,21 @@ class WebRTCService {
         try {
             switch (type) {
                 case 'join':
-                    // CRITICAL FIX: When someone joins, ALL existing participants should initiate connection
-                    // Only create offer if we haven't already connected to this participant
-                    if (!this.peerConnections.has(from) && !this.existingParticipants.has(from)) {
-                        console.log('New participant joined, initiating connection:', from);
+                    // When someone joins, check if we should initiate
+                    // Use a deterministic rule: lower ID initiates to higher ID
+                    if (!this.peerConnections.has(from)) {
                         this.existingParticipants.add(from);
-                        // Add a small delay to avoid race conditions
-                        setTimeout(() => {
-                            this.createOffer(from);
-                        }, 100);
+
+                        // Only initiate if our ID is "less than" the other participant's ID
+                        // This prevents both sides from initiating simultaneously
+                        if (this.shouldInitiateConnection(this.currentUserId, from)) {
+                            console.log('Initiating connection to new participant:', from);
+                            setTimeout(() => {
+                                this.createOffer(from);
+                            }, 100);
+                        } else {
+                            console.log('Waiting for', from, 'to initiate connection');
+                        }
                     }
                     break;
                 case 'offer':
@@ -152,11 +161,17 @@ class WebRTCService {
         }
     }
 
+    // Deterministic way to decide who initiates the connection
+    // This prevents both peers from initiating simultaneously (which can cause issues)
+    shouldInitiateConnection(myId, theirId) {
+        // Simple string comparison - the "lower" ID always initiates
+        return String(myId) < String(theirId);
+    }
+
     async handleOffer(participantId, offer) {
         try {
             console.log('Handling offer from:', participantId);
 
-            // Mark this participant as existing
             this.existingParticipants.add(participantId);
 
             const peerConnection = await this.createPeerConnection(participantId);
@@ -215,7 +230,6 @@ class WebRTCService {
                 console.log('Adding ICE candidate from:', participantId);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             } else {
-                // Store candidate for later if we don't have remote description yet
                 console.log('Storing pending ICE candidate from:', participantId);
                 if (!this.pendingCandidates.has(participantId)) {
                     this.pendingCandidates.set(participantId, []);
@@ -232,6 +246,7 @@ class WebRTCService {
         this.closePeerConnection(participantId);
         this.pendingCandidates.delete(participantId);
         this.existingParticipants.delete(participantId);
+        this.initiatedConnections.delete(participantId);
         if (this.onParticipantLeft) {
             this.onParticipantLeft(participantId);
         }
@@ -312,6 +327,7 @@ class WebRTCService {
         this.peerConnections.clear();
         this.pendingCandidates.clear();
         this.existingParticipants.clear();
+        this.initiatedConnections.clear();
 
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
