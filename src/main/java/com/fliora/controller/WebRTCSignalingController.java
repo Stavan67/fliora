@@ -21,12 +21,21 @@ public class WebRTCSignalingController {
     public void handleSignaling(@DestinationVariable String roomCode, @Payload Map<String, Object> message) {
         try {
             String type = (String) message.get("type");
+            String from = (String) message.get("from");
 
             // Log the signaling message
-            System.out.println("WebRTC Signaling - Room: " + roomCode + ", Type: " + type);
+            System.out.println("WebRTC Signaling - Room: " + roomCode + ", Type: " + type + ", From: " + from);
 
-            // Broadcast the signaling message to all participants in the room
-            messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+            // For join messages, broadcast to all participants
+            // For targeted messages (offer/answer/ice-candidate), only send to the 'to' recipient
+            if ("join".equals(type)) {
+                // Broadcast join to everyone in the room so ALL existing participants can initiate connections
+                messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+            } else {
+                // For other signaling messages, broadcast to the room
+                // The client-side filtering will handle who processes the message
+                messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+            }
 
         } catch (Exception e) {
             System.err.println("Error handling WebRTC signaling: " + e.getMessage());

@@ -8,6 +8,7 @@ class WebRTCService {
         this.onRemoteStream = null;
         this.onParticipantLeft = null;
         this.pendingCandidates = new Map();
+        this.existingParticipants = new Set(); // Track who we've already connected to
 
         this.configuration = {
             iceServers: [
@@ -105,11 +106,13 @@ class WebRTCService {
     async handleSignalingMessage(message) {
         const { type, from, to, offer, answer, candidate } = message;
 
-        if (to && to !== this.currentUserId) {
+        // Ignore messages from ourselves
+        if (from === this.currentUserId) {
             return;
         }
 
-        if (from === this.currentUserId) {
+        // For targeted messages, ignore if not meant for us
+        if (to && to !== this.currentUserId) {
             return;
         }
 
@@ -118,23 +121,17 @@ class WebRTCService {
         try {
             switch (type) {
                 case 'join':
-                    // KEY FIX: When someone joins, create an offer to them
-                    // AND also announce our presence back to them
-                    await this.createOffer(from);
-
-                    // Send a join-ack so the new user knows to create an offer back
-                    this.sendSignalingMessage({
-                        type: 'join-ack',
-                        from: this.currentUserId,
-                        to: from
-                    });
+                    // CRITICAL FIX: When someone joins, ALL existing participants should initiate connection
+                    // Only create offer if we haven't already connected to this participant
+                    if (!this.peerConnections.has(from) && !this.existingParticipants.has(from)) {
+                        console.log('New participant joined, initiating connection:', from);
+                        this.existingParticipants.add(from);
+                        // Add a small delay to avoid race conditions
+                        setTimeout(() => {
+                            this.createOffer(from);
+                        }, 100);
+                    }
                     break;
-
-                case 'join-ack':
-                    // When we receive acknowledgment, create offer to that participant
-                    await this.createOffer(from);
-                    break;
-
                 case 'offer':
                     await this.handleOffer(from, offer);
                     break;
@@ -158,9 +155,14 @@ class WebRTCService {
     async handleOffer(participantId, offer) {
         try {
             console.log('Handling offer from:', participantId);
+
+            // Mark this participant as existing
+            this.existingParticipants.add(participantId);
+
             const peerConnection = await this.createPeerConnection(participantId);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
 
+            // Add any pending candidates
             if (this.pendingCandidates.has(participantId)) {
                 console.log('Adding pending candidates for:', participantId);
                 const candidates = this.pendingCandidates.get(participantId);
@@ -191,6 +193,7 @@ class WebRTCService {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 
+                // Add any pending candidates
                 if (this.pendingCandidates.has(participantId)) {
                     console.log('Adding pending candidates for:', participantId);
                     const candidates = this.pendingCandidates.get(participantId);
@@ -212,6 +215,7 @@ class WebRTCService {
                 console.log('Adding ICE candidate from:', participantId);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             } else {
+                // Store candidate for later if we don't have remote description yet
                 console.log('Storing pending ICE candidate from:', participantId);
                 if (!this.pendingCandidates.has(participantId)) {
                     this.pendingCandidates.set(participantId, []);
@@ -227,6 +231,7 @@ class WebRTCService {
         console.log('Participant left:', participantId);
         this.closePeerConnection(participantId);
         this.pendingCandidates.delete(participantId);
+        this.existingParticipants.delete(participantId);
         if (this.onParticipantLeft) {
             this.onParticipantLeft(participantId);
         }
@@ -306,6 +311,7 @@ class WebRTCService {
         });
         this.peerConnections.clear();
         this.pendingCandidates.clear();
+        this.existingParticipants.clear();
 
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
