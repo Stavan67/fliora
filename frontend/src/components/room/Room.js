@@ -57,6 +57,12 @@ const Room = ({ user, onLogout }) => {
         };
     }, [location.state, searchParams, user]);
 
+    useEffect(() => {
+        console.log('[Room] Current participants:', participants.map(p => ({ id: p.id, username: p.username })));
+        console.log('[Room] Remote streams keys:', Array.from(remoteStreams.keys()));
+        console.log('[Room] Current user ID:', user.id);
+    }, [participants, remoteStreams, user]);
+
     const joinRoomByCode = async (roomCode) => {
         try {
             setLoading(true);
