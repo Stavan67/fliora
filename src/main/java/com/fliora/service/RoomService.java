@@ -19,7 +19,6 @@ import java.util.UUID;
 @Transactional
 public class RoomService {
 
-    // Declare the fields first
     private final RoomRepository roomRepository;
     private final RoomParticipantRepository participantRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -98,7 +97,8 @@ public class RoomService {
             participantRepository.save(participant);
         }
 
-        notifyRoomParticipants(room, "USER_JOINED", user.getUsername() + " joined the room");
+        // Pass userId to notification for WebRTC connection
+        notifyRoomParticipants(room, "USER_JOINED", user.getUsername() + " joined the room", user.getId());
         return room;
     }
 
@@ -116,7 +116,7 @@ public class RoomService {
         if(participant.isHost()) {
             endRoom(room);
         } else {
-            notifyRoomParticipants(room, "USER_LEFT", user.getUsername() + " left the room");
+            notifyRoomParticipants(room, "USER_LEFT", user.getUsername() + " left the room", user.getId());
         }
     }
 
@@ -128,7 +128,6 @@ public class RoomService {
             throw new RuntimeException("Only the host can kick participants");
         }
 
-        // Fix: Get the user properly from database instead of creating empty user
         User participantUser = userService.findById(participantUserId)
                 .orElseThrow(() -> new RuntimeException("Participant user not found"));
 
@@ -143,7 +142,7 @@ public class RoomService {
         participant.setLeftAt(LocalDateTime.now());
         participantRepository.save(participant);
 
-        notifyRoomParticipants(room, "USER_KICKED", participant.getUser().getUsername() + " was removed from the room");
+        notifyRoomParticipants(room, "USER_KICKED", participant.getUser().getUsername() + " was removed from the room", participantUserId);
     }
 
     public void updateParticipantMedia(String roomCode, User user, boolean videoEnabled, boolean audioEnabled) {
@@ -157,7 +156,7 @@ public class RoomService {
         participant.setAudioEnabled(audioEnabled);
         participantRepository.save(participant);
 
-        notifyRoomParticipants(room, "MEDIA_UPDATED", null);
+        notifyRoomParticipants(room, "MEDIA_UPDATED", null, user.getId());
     }
 
     public void startWatchParty(String roomCode, User hostUser) {
@@ -170,7 +169,7 @@ public class RoomService {
 
         room.setStatus(Room.RoomStatus.ACTIVE);
         roomRepository.save(room);
-        notifyRoomParticipants(room, "WATCH_PARTY_STARTED", "Watch party has started!");
+        notifyRoomParticipants(room, "WATCH_PARTY_STARTED", "Watch party has started!", hostUser.getId());
     }
 
     public Room getRoomByCode(String roomCode) {
@@ -221,13 +220,14 @@ public class RoomService {
             participantRepository.save(participant);
         }
 
-        notifyRoomParticipants(room, "ROOM_ENDED", "The room has been ended by the host");
+        notifyRoomParticipants(room, "ROOM_ENDED", "The room has been ended by the host", room.getHostUser().getId());
     }
 
-    private void notifyRoomParticipants(Room room, String type, String message) {
+    private void notifyRoomParticipants(Room room, String type, String message, UUID userId) {
         try {
             String destination = "/topic/room/" + room.getRoomCode();
-            messagingTemplate.convertAndSend(destination, new RoomNotification(type, message, LocalDateTime.now()));
+            RoomNotification notification = new RoomNotification(type, message, LocalDateTime.now(), userId);
+            messagingTemplate.convertAndSend(destination, notification);
         } catch(Exception e){
             System.err.println("Failed to send room notification: " + e.getMessage());
         }
@@ -247,11 +247,13 @@ public class RoomService {
         private String type;
         private String message;
         private LocalDateTime timestamp;
+        private UUID userId;
 
-        public RoomNotification(String type, String message, LocalDateTime timestamp) {
+        public RoomNotification(String type, String message, LocalDateTime timestamp, UUID userId) {
             this.type = type;
             this.message = message;
             this.timestamp = timestamp;
+            this.userId = userId;
         }
 
         public String getType() {
@@ -264,6 +266,10 @@ public class RoomService {
 
         public LocalDateTime getTimestamp() {
             return timestamp;
+        }
+
+        public UUID getUserId() {
+            return userId;
         }
     }
 }
