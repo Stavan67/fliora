@@ -7,7 +7,7 @@ class WebRTCService {
         this.currentUserId = null;
         this.onRemoteStream = null;
         this.onParticipantLeft = null;
-        this.pendingCandidates = new Map(); // Store candidates received before remote description
+        this.pendingCandidates = new Map();
 
         this.configuration = {
             iceServers: [
@@ -24,7 +24,6 @@ class WebRTCService {
         this.currentUserId = userId;
         this.localStream = localStream;
 
-        // Subscribe to WebRTC signaling messages
         this.stompClient.subscribe(`/topic/signal/${roomCode}`, (message) => {
             this.handleSignalingMessage(JSON.parse(message.body));
         });
@@ -41,7 +40,6 @@ class WebRTCService {
         const peerConnection = new RTCPeerConnection(this.configuration);
         this.peerConnections.set(participantId, peerConnection);
 
-        // Add local stream tracks
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
                 console.log('Adding track to peer connection:', track.kind, track.enabled);
@@ -49,7 +47,6 @@ class WebRTCService {
             });
         }
 
-        // Handle incoming stream
         peerConnection.ontrack = (event) => {
             console.log('Received remote track from:', participantId, event.track.kind);
             if (this.onRemoteStream && event.streams[0]) {
@@ -57,7 +54,6 @@ class WebRTCService {
             }
         };
 
-        // Handle ICE candidates
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 console.log('Sending ICE candidate to:', participantId);
@@ -70,7 +66,6 @@ class WebRTCService {
             }
         };
 
-        // Handle connection state changes
         peerConnection.onconnectionstatechange = () => {
             console.log(`Connection state with ${participantId}:`, peerConnection.connectionState);
             if (peerConnection.connectionState === 'disconnected' ||
@@ -79,7 +74,6 @@ class WebRTCService {
             }
         };
 
-        // Handle ICE connection state
         peerConnection.oniceconnectionstatechange = () => {
             console.log(`ICE connection state with ${participantId}:`, peerConnection.iceConnectionState);
         };
@@ -111,12 +105,10 @@ class WebRTCService {
     async handleSignalingMessage(message) {
         const { type, from, to, offer, answer, candidate } = message;
 
-        // Ignore messages not meant for us
         if (to && to !== this.currentUserId) {
             return;
         }
 
-        // Don't process our own messages
         if (from === this.currentUserId) {
             return;
         }
@@ -126,9 +118,23 @@ class WebRTCService {
         try {
             switch (type) {
                 case 'join':
-                    // When someone joins, create an offer to them
+                    // KEY FIX: When someone joins, create an offer to them
+                    // AND also announce our presence back to them
+                    await this.createOffer(from);
+
+                    // Send a join-ack so the new user knows to create an offer back
+                    this.sendSignalingMessage({
+                        type: 'join-ack',
+                        from: this.currentUserId,
+                        to: from
+                    });
+                    break;
+
+                case 'join-ack':
+                    // When we receive acknowledgment, create offer to that participant
                     await this.createOffer(from);
                     break;
+
                 case 'offer':
                     await this.handleOffer(from, offer);
                     break;
@@ -155,7 +161,6 @@ class WebRTCService {
             const peerConnection = await this.createPeerConnection(participantId);
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
 
-            // Add any pending ICE candidates
             if (this.pendingCandidates.has(participantId)) {
                 console.log('Adding pending candidates for:', participantId);
                 const candidates = this.pendingCandidates.get(participantId);
@@ -186,7 +191,6 @@ class WebRTCService {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 
-                // Add any pending ICE candidates
                 if (this.pendingCandidates.has(participantId)) {
                     console.log('Adding pending candidates for:', participantId);
                     const candidates = this.pendingCandidates.get(participantId);
@@ -208,7 +212,6 @@ class WebRTCService {
                 console.log('Adding ICE candidate from:', participantId);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             } else {
-                // Store candidate for later if we don't have remote description yet
                 console.log('Storing pending ICE candidate from:', participantId);
                 if (!this.pendingCandidates.has(participantId)) {
                     this.pendingCandidates.set(participantId, []);
@@ -259,7 +262,6 @@ class WebRTCService {
     updateLocalStream(newStream) {
         this.localStream = newStream;
 
-        // Update all peer connections with new tracks
         this.peerConnections.forEach((peerConnection, participantId) => {
             const senders = peerConnection.getSenders();
             const newTracks = newStream.getTracks();

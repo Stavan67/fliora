@@ -33,14 +33,12 @@ const Room = ({ user, onLogout }) => {
     useEffect(() => {
         const roomCode = searchParams.get('room');
 
-        // Handle direct room link from WhatsApp
         if (roomCode && !initializationRef.current && user) {
             initializationRef.current = true;
             joinRoomByCode(roomCode);
             return;
         }
 
-        // Handle normal room navigation
         if (!location.state?.roomData && !initializationRef.current && !roomCode) {
             navigate('/dashboard');
             return;
