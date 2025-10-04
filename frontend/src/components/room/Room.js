@@ -1,6 +1,6 @@
 // components/room/Room.js
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import apiClient from '../../services/apiClient';
 import webRTCService from '../../services/WebRTCService';
 import { Client } from '@stomp/stompjs';
@@ -26,10 +26,22 @@ const Room = ({ user, onLogout }) => {
 
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const initializationRef = useRef(false);
+    const videoStreamRef = useRef(null);
 
     useEffect(() => {
-        if (!location.state?.roomData && !initializationRef.current) {
+        const roomCode = searchParams.get('room');
+
+        // Handle direct room link from WhatsApp
+        if (roomCode && !initializationRef.current && user) {
+            initializationRef.current = true;
+            joinRoomByCode(roomCode);
+            return;
+        }
+
+        // Handle normal room navigation
+        if (!location.state?.roomData && !initializationRef.current && !roomCode) {
             navigate('/dashboard');
             return;
         }
@@ -45,7 +57,26 @@ const Room = ({ user, onLogout }) => {
         return () => {
             cleanup();
         };
-    }, [location.state]);
+    }, [location.state, searchParams, user]);
+
+    const joinRoomByCode = async (roomCode) => {
+        try {
+            setLoading(true);
+            const response = await apiClient.post(`/api/rooms/${roomCode}/join`);
+            const room = {
+                roomCode: response.data.roomCode,
+                roomName: response.data.roomName,
+                isHost: response.data.isHost
+            };
+            setRoomData(room);
+            setIsHost(room.isHost);
+            await initializeRoom(room);
+        } catch (err) {
+            console.error('Error joining room:', err);
+            setError(err.response?.data?.message || 'Failed to join room');
+            setTimeout(() => navigate('/dashboard'), 2000);
+        }
+    };
 
     const initializeRoom = async (room) => {
         try {
@@ -75,6 +106,7 @@ const Room = ({ user, onLogout }) => {
                     autoGainControl: true
                 }
             });
+            videoStreamRef.current = stream;
             setLocalStream(stream);
         } catch (err) {
             console.error('Error accessing media devices:', err);
@@ -87,6 +119,9 @@ const Room = ({ user, onLogout }) => {
         const socket = new SockJS('/ws');
         const client = new Client({
             webSocketFactory: () => socket,
+            reconnectDelay: 5000,
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
             onConnect: () => {
                 console.log('Connected to WebSocket');
 
@@ -95,13 +130,16 @@ const Room = ({ user, onLogout }) => {
                     handleRoomNotification(JSON.parse(message.body));
                 });
 
-                // Initialize WebRTC
-                webRTCService.initialize(client, room.roomCode, user.id, localStream);
+                // Initialize WebRTC with current stream
+                const currentStream = videoStreamRef.current || localStream;
+                webRTCService.initialize(client, room.roomCode, user.id, currentStream);
                 webRTCService.onRemoteStream = handleRemoteStream;
                 webRTCService.onParticipantLeft = handleRemoteParticipantLeft;
 
-                // Notify others of our presence
-                webRTCService.notifyJoin();
+                // Notify others of our presence after a short delay
+                setTimeout(() => {
+                    webRTCService.notifyJoin();
+                }, 500);
 
                 setStompClient(client);
             },
@@ -122,10 +160,6 @@ const Room = ({ user, onLogout }) => {
             case 'USER_JOINED':
                 refreshParticipants();
                 addSystemMessage(message);
-                // Create offer for new participant
-                if (userId && userId !== user.id) {
-                    setTimeout(() => webRTCService.createOffer(userId), 1000);
-                }
                 break;
             case 'USER_LEFT':
             case 'USER_KICKED':
@@ -180,7 +214,15 @@ const Room = ({ user, onLogout }) => {
     const toggleVideo = async () => {
         const newVideoState = !videoEnabled;
         setVideoEnabled(newVideoState);
-        webRTCService.toggleTrack('video', newVideoState);
+
+        if (videoStreamRef.current) {
+            // Simply enable/disable the existing track
+            const videoTracks = videoStreamRef.current.getVideoTracks();
+            videoTracks.forEach(track => {
+                track.enabled = newVideoState;
+            });
+            webRTCService.toggleTrack('video', newVideoState);
+        }
 
         try {
             await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
@@ -195,7 +237,14 @@ const Room = ({ user, onLogout }) => {
     const toggleAudio = async () => {
         const newAudioState = !audioEnabled;
         setAudioEnabled(newAudioState);
-        webRTCService.toggleTrack('audio', newAudioState);
+
+        if (videoStreamRef.current) {
+            const audioTracks = videoStreamRef.current.getAudioTracks();
+            audioTracks.forEach(track => {
+                track.enabled = newAudioState;
+            });
+            webRTCService.toggleTrack('audio', newAudioState);
+        }
 
         try {
             await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
@@ -231,13 +280,13 @@ const Room = ({ user, onLogout }) => {
     };
 
     const copyRoomLink = () => {
-        const link = `${window.location.origin}/dashboard?room=${roomData.roomCode}`;
+        const link = `${window.location.origin}/?room=${roomData.roomCode}`;
         navigator.clipboard.writeText(link);
         alert('Room link copied to clipboard!');
     };
 
     const shareToWhatsApp = () => {
-        const link = `${window.location.origin}/dashboard?room=${roomData.roomCode}`;
+        const link = `${window.location.origin}/?room=${roomData.roomCode}`;
         const message = `Join my Fliora Watch Party!\n\nRoom Code: ${roomData.roomCode}\n${link}`;
         window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     };
@@ -268,6 +317,11 @@ const Room = ({ user, onLogout }) => {
     };
 
     const cleanup = async () => {
+        if (videoStreamRef.current) {
+            videoStreamRef.current.getTracks().forEach(track => track.stop());
+            videoStreamRef.current = null;
+        }
+
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
         }
