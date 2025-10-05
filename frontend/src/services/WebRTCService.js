@@ -171,20 +171,64 @@ class WebRTCService {
         }
     }
 
+    handleNewParticipant(participantId) {
+        const participantIdStr = String(participantId);
+
+        console.log('[WebRTC] 👤 Handling new participant:', participantIdStr);
+
+        // Check if we already have a connection
+        if (this.peerConnections.has(participantIdStr)) {
+            console.log('[WebRTC] ⚠️ Already have connection with:', participantIdStr);
+            return;
+        }
+
+        // Check if we've already initiated
+        if (this.initiatedConnections.has(participantIdStr)) {
+            console.log('[WebRTC] ⚠️ Already initiated connection with:', participantIdStr);
+            return;
+        }
+
+        // Determine who should initiate based on ID comparison
+        if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
+            console.log('[WebRTC] 🎯 I will initiate connection to:', participantIdStr);
+            this.createOffer(participantIdStr);
+        } else {
+            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection to me');
+        }
+    }
+
     async handleJoin(participantId) {
-        console.log('[WebRTC] 👋 Participant joined:', participantId);
+        const participantIdStr = String(participantId);
+        console.log('[WebRTC] 👋 Participant joined:', participantIdStr);
 
-        if (!this.peerConnections.has(participantId)) {
-            this.existingParticipants.add(participantId);
+        // Add to existing participants set
+        this.existingParticipants.add(participantIdStr);
 
-            if (this.shouldInitiateConnection(this.currentUserId, participantId)) {
-                console.log('[WebRTC] 🎯 I should initiate connection to:', participantId);
-                setTimeout(() => {
-                    this.createOffer(participantId);
-                }, 100);
-            } else {
-                console.log('[WebRTC] ⏳ Waiting for', participantId, 'to initiate connection');
-            }
+        // Check if we already have a connection or initiated one
+        if (this.peerConnections.has(participantIdStr)) {
+            console.log('[WebRTC] ⚠️ Already have peer connection with:', participantIdStr);
+            return;
+        }
+
+        if (this.initiatedConnections.has(participantIdStr)) {
+            console.log('[WebRTC] ⚠️ Already initiated connection with:', participantIdStr);
+            return;
+        }
+
+        // Determine who initiates based on ID comparison
+        // Lower ID always initiates
+        if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
+            console.log('[WebRTC] 🎯 I should initiate connection to:', participantIdStr);
+            // Small delay to ensure the other peer is ready
+            setTimeout(() => {
+                this.createOffer(participantIdStr);
+            }, 500);
+        } else {
+            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection');
+            // We're waiting for them to send us an offer
+            // Make sure we're ready to receive it by pre-creating the peer connection
+            // This ensures our ontrack handler is set up
+            this.createPeerConnection(participantIdStr);
         }
     }
 

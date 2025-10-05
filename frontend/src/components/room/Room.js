@@ -144,12 +144,10 @@ const Room = ({ user, onLogout }) => {
                 onConnect: () => {
                     console.log('[Room] ✅ WebSocket connected');
 
-                    // Subscribe to room notifications
                     client.subscribe(`/topic/room/${room.roomCode}`, (message) => {
                         handleRoomNotification(JSON.parse(message.body));
                     });
 
-                    // Initialize WebRTC with current stream
                     const currentStream = videoStreamRef.current || localStream;
                     webRTCService.initialize(client, room.roomCode, user.id, currentStream);
                     webRTCService.onRemoteStream = handleRemoteStream;
@@ -158,13 +156,10 @@ const Room = ({ user, onLogout }) => {
                     setStompClient(client);
                     setWebRTCReady(true);
 
-                    // CRITICAL: Notify join AFTER everything is set up
-                    // and give existing users time to be ready
                     setTimeout(() => {
                         console.log('[Room] 📢 Notifying join to room');
                         webRTCService.notifyJoin();
 
-                        // For existing participants (if we're not the first), initiate connections
                         initiateConnectionsToExistingParticipants();
                     }, 1000);
 
@@ -210,14 +205,13 @@ const Room = ({ user, onLogout }) => {
             case 'USER_JOINED':
                 refreshParticipants();
                 addSystemMessage(message);
-                // When someone joins, existing users should consider connecting
                 if (userId && String(userId) !== String(user.id)) {
                     setTimeout(() => {
-                        if (webRTCReady && webRTCService.shouldInitiateConnection(String(user.id), String(userId))) {
-                            console.log('[Room] 🎯 New user joined, initiating connection to:', userId);
-                            webRTCService.createOffer(userId);
+                        if (webRTCReady) {
+                            console.log('[Room] 🎯 New user joined, checking if should initiate to:', userId);
+                            webRTCService.handleNewParticipant(userId);
                         }
-                    }, 1500);
+                    }, 2000);
                 }
                 break;
             case 'USER_LEFT':
