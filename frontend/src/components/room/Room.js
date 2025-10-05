@@ -1,10 +1,10 @@
-// components/room/Room.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import apiClient from '../../services/apiClient';
-import webRTCService from '../../services/WebRTCService';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+
+import apiClient from '../../services/apiClient';
+import webRTCService from '../../services/WebRTCService';
 import VideoGrid from './VideoGrid';
 import RoomControls from './RoomControls';
 import RoomSidebar from './RoomSidebar';
@@ -28,86 +28,23 @@ const Room = ({ user, onLogout }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
+
     const initializationRef = useRef(false);
     const videoStreamRef = useRef(null);
     const participantsRef = useRef([]);
 
-    // Keep participants ref in sync
     useEffect(() => {
         participantsRef.current = participants;
     }, [participants]);
 
     useEffect(() => {
-        const roomCode = searchParams.get('room');
-
-        if (roomCode && !initializationRef.current && user) {
-            initializationRef.current = true;
-            joinRoomByCode(roomCode);
-            return;
-        }
-
-        if (!location.state?.roomData && !initializationRef.current && !roomCode) {
-            navigate('/dashboard');
-            return;
-        }
-
-        if (location.state?.roomData && !initializationRef.current) {
-            initializationRef.current = true;
-            const room = location.state.roomData;
-            setRoomData(room);
-            setIsHost(room.isHost);
-            initializeRoom(room);
-        }
-
-        return () => {
-            cleanup();
-        };
-    }, [location.state, searchParams, user]);
-
-    useEffect(() => {
-        console.log('[Room] Current participants:', participants.map(p => ({ id: p.id, username: p.username })));
+        console.log('[Room] Current participants:', participants.map(p => ({
+            id: p.id,
+            username: p.username
+        })));
         console.log('[Room] Remote streams keys:', Array.from(remoteStreams.keys()));
         console.log('[Room] Current user ID:', user.id);
     }, [participants, remoteStreams, user]);
-
-    const joinRoomByCode = async (roomCode) => {
-        try {
-            setLoading(true);
-            const response = await apiClient.post(`/api/rooms/${roomCode}/join`);
-            const room = {
-                roomCode: response.data.roomCode,
-                roomName: response.data.roomName,
-                isHost: response.data.isHost
-            };
-            setRoomData(room);
-            setIsHost(room.isHost);
-            await initializeRoom(room);
-        } catch (err) {
-            console.error('Error joining room:', err);
-            setError(err.response?.data?.message || 'Failed to join room');
-            setTimeout(() => navigate('/dashboard'), 2000);
-        }
-    };
-
-    const initializeRoom = async (room) => {
-        try {
-            // Step 1: Get media first
-            await initializeMedia();
-
-            // Step 2: Load participants BEFORE connecting WebSocket
-            await loadParticipants(room.roomCode);
-
-            // Step 3: Connect WebSocket and setup WebRTC
-            await connectWebSocket(room);
-
-            addSystemMessage(`Welcome to ${room.roomName}!`);
-        } catch (err) {
-            console.error('Error initializing room:', err);
-            setError('Failed to initialize room');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const initializeMedia = async () => {
         try {
@@ -123,6 +60,7 @@ const Room = ({ user, onLogout }) => {
                     autoGainControl: true
                 }
             });
+
             videoStreamRef.current = stream;
             setLocalStream(stream);
             console.log('[Room] ✅ Media initialized successfully');
@@ -130,6 +68,20 @@ const Room = ({ user, onLogout }) => {
             console.error('Error accessing media devices:', err);
             setError('Failed to access camera/microphone. Please check permissions.');
             throw err;
+        }
+    };
+
+    const loadParticipants = async (roomCode) => {
+        try {
+            console.log('[Room] 📋 Loading participants for room:', roomCode);
+            const response = await apiClient.get(`/api/rooms/${roomCode}/participants`);
+            console.log('[Room] ✅ Loaded participants:', response.data.participants.map(p => ({
+                id: p.id,
+                username: p.username
+            })));
+            setParticipants(response.data.participants);
+        } catch (err) {
+            console.error('[Room] ❌ Failed to load participants:', err);
         }
     };
 
@@ -159,7 +111,6 @@ const Room = ({ user, onLogout }) => {
                     setTimeout(() => {
                         console.log('[Room] 📢 Notifying join to room');
                         webRTCService.notifyJoin();
-
                         initiateConnectionsToExistingParticipants();
                     }, 1000);
 
@@ -174,6 +125,7 @@ const Room = ({ user, onLogout }) => {
                     reject(error);
                 }
             });
+
             client.activate();
         });
     };
@@ -184,17 +136,57 @@ const Room = ({ user, onLogout }) => {
             currentParticipants.map(p => p.id));
 
         currentParticipants.forEach(participant => {
-            // Don't connect to ourselves
             if (String(participant.id) !== String(user.id)) {
                 console.log('[Room] 🤝 Initiating connection to existing participant:', participant.id);
-                // Use the WebRTC service's logic to determine who initiates
-                if (webRTCService.shouldInitiateConnection(String(user.id), String(participant.id))) {
+
+                const myId = String(user.id);
+                const theirId = String(participant.id);
+
+                if (webRTCService.shouldInitiateConnection(myId, theirId)) {
                     setTimeout(() => {
                         webRTCService.createOffer(participant.id);
+                    }, 500);
+                } else {
+                    setTimeout(() => {
+                        webRTCService.createPeerConnection(participant.id);
                     }, 500);
                 }
             }
         });
+    };
+
+    const initializeRoom = async (room) => {
+        try {
+            await initializeMedia();
+            await loadParticipants(room.roomCode);
+            await connectWebSocket(room);
+            addSystemMessage(`Welcome to ${room.roomName}!`);
+        } catch (err) {
+            console.error('Error initializing room:', err);
+            setError('Failed to initialize room');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const joinRoomByCode = async (roomCode) => {
+        try {
+            setLoading(true);
+            const response = await apiClient.post(`/api/rooms/${roomCode}/join`);
+            const room = {
+                roomCode: response.data.roomCode,
+                roomName: response.data.roomName,
+                isHost: response.data.isHost
+            };
+
+            setRoomData(room);
+            setIsHost(room.isHost);
+            await initializeRoom(room);
+        } catch (err) {
+            console.error('Error joining room:', err);
+            setError(err.response?.data?.message || 'Failed to join room');
+            setTimeout(() => navigate('/dashboard'), 2000);
+        }
     };
 
     const handleRoomNotification = (notification) => {
@@ -205,14 +197,6 @@ const Room = ({ user, onLogout }) => {
             case 'USER_JOINED':
                 refreshParticipants();
                 addSystemMessage(message);
-                if (userId && String(userId) !== String(user.id)) {
-                    setTimeout(() => {
-                        if (webRTCReady) {
-                            console.log('[Room] 🎯 New user joined, checking if should initiate to:', userId);
-                            webRTCService.handleNewParticipant(userId);
-                        }
-                    }, 2000);
-                }
                 break;
             case 'USER_LEFT':
             case 'USER_KICKED':
@@ -247,17 +231,6 @@ const Room = ({ user, onLogout }) => {
             newStreams.delete(participantId);
             return newStreams;
         });
-    };
-
-    const loadParticipants = async (roomCode) => {
-        try {
-            console.log('[Room] 📋 Loading participants for room:', roomCode);
-            const response = await apiClient.get(`/api/rooms/${roomCode}/participants`);
-            console.log('[Room] ✅ Loaded participants:', response.data.participants.map(p => ({ id: p.id, username: p.username })));
-            setParticipants(response.data.participants);
-        } catch (err) {
-            console.error('[Room] ❌ Failed to load participants:', err);
-        }
     };
 
     const refreshParticipants = async () => {
@@ -320,6 +293,7 @@ const Room = ({ user, onLogout }) => {
             message: chatInput,
             timestamp: new Date().toLocaleTimeString()
         };
+
         setChatMessages(prev => [...prev, message]);
         setChatInput('');
     };
@@ -365,11 +339,6 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    const goBackToDashboard = async () => {
-        await cleanup();
-        navigate('/dashboard');
-    };
-
     const cleanup = async () => {
         console.log('[Room] 🧹 Starting cleanup');
 
@@ -397,6 +366,11 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
+    const goBackToDashboard = async () => {
+        await cleanup();
+        navigate('/dashboard');
+    };
+
     if (loading) {
         return (
             <div className="room-loading">
@@ -408,20 +382,20 @@ const Room = ({ user, onLogout }) => {
 
     return (
         <div className="room-container">
-            <nav className="room-navbar">
-                <div className="navbar-brand">
-                    Fliora - {roomData?.roomName}
+            <div className="room-header">
+                <div className="room-title">
+                    <h2>Fliora - {roomData?.roomName}</h2>
                 </div>
-                <div className="navbar-info">
-                    <span className="room-code-display">
-                        Room: <strong>{roomData?.roomCode}</strong>
-                    </span>
+                <div className="room-info">
+          <span className="room-code">
+            Room: {roomData?.roomCode}
+          </span>
                     <span className="participant-count">
-                        {participants.length} {participants.length === 1 ? 'participant' : 'participants'}
-                    </span>
+            {participants.length} {participants.length === 1 ? 'participant' : 'participants'}
+          </span>
                 </div>
-                <div className="navbar-actions">
-                    <span className="user-welcome">Welcome, {user?.username}!</span>
+                <div className="room-actions">
+                    <span>Welcome, {user?.username}!</span>
                     <button className="leave-room-btn" onClick={goBackToDashboard}>
                         Leave Room
                     </button>
@@ -429,17 +403,17 @@ const Room = ({ user, onLogout }) => {
                         Logout
                     </button>
                 </div>
-            </nav>
+            </div>
 
             {error && (
-                <div className="room-error-message">
+                <div className="error-banner">
                     {error}
                     <button onClick={() => setError('')}>×</button>
                 </div>
             )}
 
             <div className="room-content">
-                <div className="room-main">
+                <div className="video-section">
                     <VideoGrid
                         localStream={localStream}
                         remoteStreams={remoteStreams}
@@ -450,7 +424,6 @@ const Room = ({ user, onLogout }) => {
                         isHost={isHost}
                         onKickParticipant={handleKickParticipant}
                     />
-
                     <RoomControls
                         videoEnabled={videoEnabled}
                         audioEnabled={audioEnabled}
