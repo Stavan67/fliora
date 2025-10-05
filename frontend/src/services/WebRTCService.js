@@ -215,20 +215,18 @@ class WebRTCService {
             return;
         }
 
-        // Determine who initiates based on ID comparison
-        // Lower ID always initiates
         if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
             console.log('[WebRTC] 🎯 I should initiate connection to:', participantIdStr);
-            // Small delay to ensure the other peer is ready
+            // Increased delay to ensure the other peer is ready
             setTimeout(() => {
+                console.log('[WebRTC] 🚀 Now creating offer to:', participantIdStr);
                 this.createOffer(participantIdStr);
-            }, 500);
+            }, 1500); // Increased from 500ms to 1500ms
         } else {
             console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection');
-            // We're waiting for them to send us an offer
-            // Make sure we're ready to receive it by pre-creating the peer connection
-            // This ensures our ontrack handler is set up
-            this.createPeerConnection(participantIdStr);
+            // Pre-create the peer connection to ensure handlers are ready
+            await this.createPeerConnection(participantIdStr);
+            console.log('[WebRTC] ✅ Peer connection pre-created, ready to receive offer');
         }
     }
 
@@ -238,34 +236,50 @@ class WebRTCService {
 
     async handleOffer(participantId, offer) {
         try {
-            console.log('[WebRTC] 📥 Handling offer from:', participantId);
+            const participantIdStr = String(participantId);
+            console.log('[WebRTC] 📥 Handling offer from:', participantIdStr);
 
-            this.existingParticipants.add(participantId);
+            this.existingParticipants.add(participantIdStr);
 
-            const peerConnection = await this.createPeerConnection(participantId);
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            console.log('[WebRTC] Remote description set from offer');
-
-            // Add any pending candidates
-            if (this.pendingCandidates.has(participantId)) {
-                const candidates = this.pendingCandidates.get(participantId);
-                console.log('[WebRTC] Adding', candidates.length, 'pending candidates');
-                for (const candidate of candidates) {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                }
-                this.pendingCandidates.delete(participantId);
+            // Close existing connection if any (shouldn't happen but safety check)
+            if (this.peerConnections.has(participantIdStr)) {
+                console.log('[WebRTC] ⚠️ Already have connection, closing old one');
+                this.closePeerConnection(participantIdStr);
             }
 
+            const peerConnection = await this.createPeerConnection(participantIdStr);
+
+            console.log('[WebRTC] 🔧 Setting remote description from offer');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log('[WebRTC] ✅ Remote description set from offer');
+
+            // Add any pending candidates
+            if (this.pendingCandidates.has(participantIdStr)) {
+                const candidates = this.pendingCandidates.get(participantIdStr);
+                console.log('[WebRTC] 📌 Adding', candidates.length, 'pending candidates');
+                for (const candidate of candidates) {
+                    try {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    } catch (e) {
+                        console.error('[WebRTC] ❌ Error adding pending candidate:', e);
+                    }
+                }
+                this.pendingCandidates.delete(participantIdStr);
+            }
+
+            console.log('[WebRTC] 📤 Creating answer');
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            console.log('[WebRTC] Answer created and set as local description');
+            console.log('[WebRTC] ✅ Answer created and set as local description');
 
             this.sendSignalingMessage({
                 type: 'answer',
                 answer: answer,
                 from: this.currentUserId,
-                to: participantId
+                to: participantIdStr
             });
+
+            console.log('[WebRTC] 📨 Answer sent to:', participantIdStr);
         } catch (error) {
             console.error('[WebRTC] ❌ Error handling offer:', error);
         }
