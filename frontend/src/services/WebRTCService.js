@@ -144,11 +144,12 @@ class WebRTCService {
             return;
         }
 
-        console.log('[WebRTC] 📨 Received signaling:', type, 'from:', fromStr);
+        console.log('[WebRTC] 📨 Received signaling:', type, 'from:', fromStr, 'to:', toStr || 'broadcast');
 
         try {
             switch (type) {
                 case 'join':
+                    // Handle join message - this is when someone joins the room
                     await this.handleJoin(fromStr);
                     break;
                 case 'offer':
@@ -164,17 +165,17 @@ class WebRTCService {
                     this.handleParticipantLeft(fromStr);
                     break;
                 default:
-                    console.log('[WebRTC] Unknown message type:', type);
+                    console.log('[WebRTC] ⚠️ Unknown message type:', type);
             }
         } catch (error) {
             console.error('[WebRTC] ❌ Error handling signaling message:', error);
         }
     }
 
-    handleNewParticipant(participantId) {
-        const participantIdStr = String(participantId);
 
-        console.log('[WebRTC] 👤 Handling new participant:', participantIdStr);
+    async handleNewParticipant(participantId) {
+        const participantIdStr = String(participantId);
+        console.log('[WebRTC] 🆕 Handling new participant:', participantIdStr);
 
         // Check if we already have a connection
         if (this.peerConnections.has(participantIdStr)) {
@@ -188,14 +189,25 @@ class WebRTCService {
             return;
         }
 
+        // Add to existing participants
+        this.existingParticipants.add(participantIdStr);
+
+        // ALWAYS create peer connection first
+        await this.createPeerConnection(participantIdStr);
+        console.log('[WebRTC] ✅ Peer connection created for new participant:', participantIdStr);
+
         // Determine who should initiate based on ID comparison
         if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
             console.log('[WebRTC] 🎯 I will initiate connection to:', participantIdStr);
-            this.createOffer(participantIdStr);
+            // Small delay to ensure the other side is ready
+            setTimeout(() => {
+                this.createOffer(participantIdStr);
+            }, 800);
         } else {
-            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection to me');
+            console.log('[WebRTC] ⏳ Waiting for:', participantIdStr, 'to initiate connection to me');
         }
     }
+
 
     async handleJoin(participantId) {
         const participantIdStr = String(participantId);
@@ -204,31 +216,25 @@ class WebRTCService {
         // Add to existing participants set
         this.existingParticipants.add(participantIdStr);
 
-        // Check if we already have a connection or initiated one
-        if (this.peerConnections.has(participantIdStr)) {
-            console.log('[WebRTC] ⚠️ Already have peer connection with:', participantIdStr);
-            return;
-        }
+        // ALWAYS pre-create peer connection for the new participant
+        // This ensures we're ready to handle offers/answers immediately
+        await this.createPeerConnection(participantIdStr);
+        console.log('[WebRTC] ✅ Peer connection pre-created for:', participantIdStr);
 
-        if (this.initiatedConnections.has(participantIdStr)) {
-            console.log('[WebRTC] ⚠️ Already initiated connection with:', participantIdStr);
-            return;
-        }
-
+        // Determine who should initiate the offer based on ID comparison
         if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
             console.log('[WebRTC] 🎯 I should initiate connection to:', participantIdStr);
-            // Increased delay to ensure the other peer is ready
+            // Give time for the other participant to set up their peer connection
             setTimeout(() => {
                 console.log('[WebRTC] 🚀 Now creating offer to:', participantIdStr);
                 this.createOffer(participantIdStr);
-            }, 1500); // Increased from 500ms to 1500ms
+            }, 1000);
         } else {
-            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection');
-            // Pre-create the peer connection to ensure handlers are ready
-            await this.createPeerConnection(participantIdStr);
-            console.log('[WebRTC] ✅ Peer connection pre-created, ready to receive offer');
+            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection to me');
+            // Peer connection is already created above, so we're ready to receive offer
         }
     }
+
 
     shouldInitiateConnection(myId, theirId) {
         return String(myId) < String(theirId);

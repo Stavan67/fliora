@@ -141,7 +141,7 @@ const Room = ({ user, onLogout }) => {
                 heartbeatIncoming: 4000,
                 heartbeatOutgoing: 4000,
                 onConnect: () => {
-                    console.log('[Room] âœ… WebSocket connected');
+                    console.log('[Room] 🔌 WebSocket connected');
 
                     // Subscribe to room notifications
                     client.subscribe(`/topic/room/${room.roomCode}`, (message) => {
@@ -158,37 +158,40 @@ const Room = ({ user, onLogout }) => {
                     setWebRTCReady(true);
 
                     // CRITICAL: Notify join AFTER everything is set up
-                    // and give existing users time to be ready
                     setTimeout(() => {
-                        console.log('[Room] ðŸ“¢ Notifying join to room');
+                        console.log('[Room] 📣 Notifying join to room');
                         webRTCService.notifyJoin();
 
-                        // For existing participants (if we're not the first), initiate connections
-                        initiateConnectionsToExistingParticipants();
+                        // For existing participants, initiate connections with additional delay
+                        setTimeout(() => {
+                            initiateConnectionsToExistingParticipants();
+                        }, 500);
                     }, 1000);
 
                     resolve();
                 },
                 onDisconnect: () => {
-                    console.log('[Room] âŒ WebSocket disconnected');
+                    console.log('[Room] 🔌 WebSocket disconnected');
                     setWebRTCReady(false);
                 },
                 onStompError: (error) => {
-                    console.error('[Room] âŒ WebSocket error:', error);
+                    console.error('[Room] ❌ WebSocket error:', error);
                     reject(error);
                 }
             });
+
             client.activate();
         });
     };
 
+
     const initiateConnectionsToExistingParticipants = () => {
         const currentParticipants = participantsRef.current;
         console.log('[Room] 🔍 Checking for existing participants to connect to:',
-            currentParticipants.map(p => ({ id: p.id, username: p.username })));
+            currentParticipants.map(p => `${p.id}:${p.username}`));
 
         if (currentParticipants.length === 0) {
-            console.log('[Room] ⚠️ No participants found yet');
+            console.log('[Room] ℹ️ No existing participants found');
             return;
         }
 
@@ -196,40 +199,53 @@ const Room = ({ user, onLogout }) => {
             const participantIdStr = String(participant.id);
             const currentUserIdStr = String(user.id);
 
+            // Don't connect to ourselves
             if (participantIdStr !== currentUserIdStr) {
-                console.log('[Room] 🤝 Initiating connection to existing participant:',
+                console.log('[Room] 🔗 Processing existing participant:',
                     participant.username, '(', participantIdStr, ')');
 
-                if (webRTCService.shouldInitiateConnection(currentUserIdStr, participantIdStr)) {
-                    console.log('[Room] ✅ I should initiate to:', participantIdStr);
-                    setTimeout(() => {
-                        console.log('[Room] 🚀 Creating offer to:', participantIdStr);
-                        webRTCService.createOffer(participantIdStr);
-                    }, 1000);
-                } else {
-                    console.log('[Room] ⏳ They should initiate to me:', participantIdStr);
-                    webRTCService.createPeerConnection(participantIdStr);
-                }
+                // Always create peer connection first
+                webRTCService.createPeerConnection(participantIdStr).then(() => {
+                    console.log('[Room] ✅ Peer connection created for existing participant:', participantIdStr);
+
+                    // Determine who should initiate
+                    if (webRTCService.shouldInitiateConnection(currentUserIdStr, participantIdStr)) {
+                        console.log('[Room] 🎯 I should initiate to:', participantIdStr);
+                        setTimeout(() => {
+                            console.log('[Room] 🚀 Creating offer to existing participant:', participantIdStr);
+                            webRTCService.createOffer(participantIdStr);
+                        }, 1200); // Staggered timing to avoid conflicts
+                    } else {
+                        console.log('[Room] ⏳ They should initiate to me:', participantIdStr);
+                    }
+                }).catch(error => {
+                    console.error('[Room] ❌ Error creating peer connection for existing participant:', error);
+                });
             }
         });
     };
 
     const handleRoomNotification = async (notification) => {
         const { type, message, userId } = notification;
-        console.log('[Room] 📬 Room notification:', type, 'userId:', userId);
+        console.log('[Room] 📢 Room notification:', type, 'userId:', userId);
 
         switch (type) {
             case 'USER_JOINED':
                 addSystemMessage(message);
+                // Refresh participants list first
                 await refreshParticipants();
 
+                // Handle WebRTC connection for new participant
                 if (userId && String(userId) !== String(user.id)) {
+                    // Give time for the new user to set up their WebRTC service
                     setTimeout(() => {
                         if (webRTCReady) {
-                            console.log('[Room] 🎯 New user joined, checking if should initiate to:', userId);
+                            console.log('[Room] 🔗 New user joined, handling WebRTC connection:', userId);
                             webRTCService.handleNewParticipant(userId);
+                        } else {
+                            console.log('[Room] ⚠️ WebRTC not ready yet for new participant:', userId);
                         }
-                    }, 2000);
+                    }, 1500); // Increased delay to ensure both sides are ready
                 }
                 break;
             case 'USER_LEFT':
@@ -248,6 +264,7 @@ const Room = ({ user, onLogout }) => {
                 break;
         }
     };
+
 
     const handleRemoteStream = (participantId, stream) => {
         console.log('[Room] ðŸŽ¥ Adding remote stream for participant:', participantId);
