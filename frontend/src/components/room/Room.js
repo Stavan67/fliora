@@ -227,40 +227,49 @@ const Room = ({ user, onLogout }) => {
 
     const handleRoomNotification = async (notification) => {
         const { type, message, userId } = notification;
-        console.log('[Room] 📢 Room notification:', type, 'userId:', userId);
+        console.log('[Room] 📢 Room notification received:', type, 'userId:', userId, 'currentUser:', user.id);
 
         switch (type) {
             case 'USER_JOINED':
                 addSystemMessage(message);
+
                 // Refresh participants list first
                 await refreshParticipants();
 
                 // Handle WebRTC connection for new participant
                 if (userId && String(userId) !== String(user.id)) {
-                    // Give time for the new user to set up their WebRTC service
-                    setTimeout(() => {
-                        if (webRTCReady) {
-                            console.log('[Room] 🔗 New user joined, handling WebRTC connection:', userId);
-                            webRTCService.handleNewParticipant(userId);
-                        } else {
-                            console.log('[Room] ⚠️ WebRTC not ready yet for new participant:', userId);
-                        }
-                    }, 1500); // Increased delay to ensure both sides are ready
+                    console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
+
+                    if (webRTCReady) {
+                        // Give time for the new user to set up their connection
+                        setTimeout(() => {
+                            console.log('[Room] 🚀 Triggering WebRTC setup for new participant:', userId);
+                            // Don't call handleNewParticipant - the join message will be handled via WebSocket
+                            // Just ensure we're ready to receive their join message
+                        }, 1000);
+                    } else {
+                        console.warn('[Room] ⚠️ WebRTC not ready yet, connection may be missed');
+                    }
                 }
                 break;
+
             case 'USER_LEFT':
             case 'USER_KICKED':
-                refreshParticipants();
+                await refreshParticipants();
                 addSystemMessage(message);
                 break;
+
             case 'MEDIA_UPDATED':
-                refreshParticipants();
+                await refreshParticipants();
                 break;
+
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
+
             default:
+                console.log('[Room] ❓ Unknown notification type:', type);
                 break;
         }
     };

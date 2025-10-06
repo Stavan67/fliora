@@ -136,39 +136,46 @@ class WebRTCService {
 
         // Ignore messages from ourselves
         if (fromStr === this.currentUserId) {
+            console.log('[WebRTC] 🔄 Ignoring message from self:', type);
             return;
         }
 
         // For targeted messages, ignore if not meant for us
         if (toStr && toStr !== this.currentUserId) {
+            console.log('[WebRTC] 📫 Message not for me, ignoring. From:', fromStr, 'To:', toStr);
             return;
         }
 
-        console.log('[WebRTC] 📨 Received signaling:', type, 'from:', fromStr, 'to:', toStr || 'broadcast');
+        console.log('[WebRTC] 📨 Processing signaling:', type, 'from:', fromStr, 'to:', toStr || 'broadcast');
 
         try {
             switch (type) {
                 case 'join':
-                    // Handle join message - this is when someone joins the room
+                    // CRITICAL: This is where the host should handle new participants
+                    console.log('[WebRTC] 🎯 Handling join from:', fromStr);
                     await this.handleJoin(fromStr);
                     break;
                 case 'offer':
+                    console.log('[WebRTC] 📥 Handling offer from:', fromStr);
                     await this.handleOffer(fromStr, offer);
                     break;
                 case 'answer':
+                    console.log('[WebRTC] 📥 Handling answer from:', fromStr);
                     await this.handleAnswer(fromStr, answer);
                     break;
                 case 'ice-candidate':
+                    console.log('[WebRTC] 🧊 Handling ICE candidate from:', fromStr);
                     await this.handleIceCandidate(fromStr, candidate);
                     break;
                 case 'participant-left':
+                    console.log('[WebRTC] 👋 Participant left:', fromStr);
                     this.handleParticipantLeft(fromStr);
                     break;
                 default:
-                    console.log('[WebRTC] ⚠️ Unknown message type:', type);
+                    console.warn('[WebRTC] ⚠️ Unknown message type:', type);
             }
         } catch (error) {
-            console.error('[WebRTC] ❌ Error handling signaling message:', error);
+            console.error('[WebRTC] ❌ Error handling signaling message:', error, 'Message:', message);
         }
     }
 
@@ -177,22 +184,18 @@ class WebRTCService {
         const participantIdStr = String(participantId);
         console.log('[WebRTC] 🆕 Handling new participant:', participantIdStr);
 
-        // Check if we already have a connection
         if (this.peerConnections.has(participantIdStr)) {
             console.log('[WebRTC] ⚠️ Already have connection with:', participantIdStr);
             return;
         }
 
-        // Check if we've already initiated
         if (this.initiatedConnections.has(participantIdStr)) {
             console.log('[WebRTC] ⚠️ Already initiated connection with:', participantIdStr);
             return;
         }
 
-        // Add to existing participants
         this.existingParticipants.add(participantIdStr);
 
-        // ALWAYS create peer connection first
         await this.createPeerConnection(participantIdStr);
         console.log('[WebRTC] ✅ Peer connection created for new participant:', participantIdStr);
 
@@ -211,34 +214,66 @@ class WebRTCService {
 
     async handleJoin(participantId) {
         const participantIdStr = String(participantId);
-        console.log('[WebRTC] 👋 Participant joined:', participantIdStr);
+        console.log('[WebRTC] 👋 PARTICIPANT JOINED - Processing:', participantIdStr, 'Current user:', this.currentUserId);
 
-        // Add to existing participants set
+        // Don't handle our own join
+        if (participantIdStr === this.currentUserId) {
+            console.log('[WebRTC] 🔄 Ignoring own join message');
+            return;
+        }
+
+        // Check if we already have this participant
+        if (this.existingParticipants.has(participantIdStr)) {
+            console.log('[WebRTC] ⚠️ Participant already exists:', participantIdStr);
+            return;
+        }
+
+        // Add to existing participants FIRST
         this.existingParticipants.add(participantIdStr);
+        console.log('[WebRTC] ✅ Added to existing participants:', participantIdStr);
 
-        // ALWAYS pre-create peer connection for the new participant
-        // This ensures we're ready to handle offers/answers immediately
-        await this.createPeerConnection(participantIdStr);
-        console.log('[WebRTC] ✅ Peer connection pre-created for:', participantIdStr);
+        // ALWAYS create peer connection for new participant
+        try {
+            await this.createPeerConnection(participantIdStr);
+            console.log('[WebRTC] ✅ Peer connection created for:', participantIdStr);
+        } catch (error) {
+            console.error('[WebRTC] ❌ Failed to create peer connection for:', participantIdStr, error);
+            return;
+        }
 
-        // Determine who should initiate the offer based on ID comparison
-        if (this.shouldInitiateConnection(this.currentUserId, participantIdStr)) {
-            console.log('[WebRTC] 🎯 I should initiate connection to:', participantIdStr);
-            // Give time for the other participant to set up their peer connection
-            setTimeout(() => {
-                console.log('[WebRTC] 🚀 Now creating offer to:', participantIdStr);
-                this.createOffer(participantIdStr);
-            }, 1000);
+        // Determine who should initiate the offer
+        const shouldInitiate = this.shouldInitiateConnection(this.currentUserId, participantIdStr);
+        console.log('[WebRTC] 🤔 Should I initiate connection?', shouldInitiate,
+            'My ID:', this.currentUserId, 'Their ID:', participantIdStr);
+
+        if (shouldInitiate) {
+            console.log('[WebRTC] 🎯 I will create offer to:', participantIdStr);
+            // Give time for both sides to set up
+            setTimeout(async () => {
+                try {
+                    console.log('[WebRTC] 🚀 Creating offer to:', participantIdStr);
+                    await this.createOffer(participantIdStr);
+                } catch (error) {
+                    console.error('[WebRTC] ❌ Failed to create offer to:', participantIdStr, error);
+                }
+            }, 1500);
         } else {
-            console.log('[WebRTC] ⏳ Waiting for', participantIdStr, 'to initiate connection to me');
-            // Peer connection is already created above, so we're ready to receive offer
+            console.log('[WebRTC] ⏳ Waiting for offer from:', participantIdStr);
         }
     }
 
+    shouldInitiateConnection(userId1, userId2) {
+        // Convert to strings for consistent comparison
+        const id1 = String(userId1);
+        const id2 = String(userId2);
 
-    shouldInitiateConnection(myId, theirId) {
-        return String(myId) < String(theirId);
+        // Simple lexicographic comparison - consistent across all clients
+        const shouldInitiate = id1 < id2;
+        console.log('[WebRTC] 🎯 Connection initiation check:', id1, '<', id2, '=', shouldInitiate);
+
+        return shouldInitiate;
     }
+
 
     async handleOffer(participantId, offer) {
         try {
@@ -360,11 +395,21 @@ class WebRTCService {
     }
 
     notifyJoin() {
-        console.log('[WebRTC] 📢 Notifying join for user:', this.currentUserId);
-        this.sendSignalingMessage({
-            type: 'join',
-            from: this.currentUserId
-        });
+        console.log('[WebRTC] 📣 Notifying join to room:', this.roomCode, 'as user:', this.currentUserId);
+
+        if (this.stompClient && this.roomCode) {
+            const joinMessage = {
+                type: 'join',
+                from: this.currentUserId,
+                roomCode: this.roomCode,
+                timestamp: new Date().toISOString()
+            };
+
+            this.stompClient.send(`/app/signal/${this.roomCode}`, {}, JSON.stringify(joinMessage));
+            console.log('[WebRTC] ✅ Join notification sent');
+        } else {
+            console.error('[WebRTC] ❌ Cannot notify join - missing stompClient or roomCode');
+        }
     }
 
     notifyLeave() {
