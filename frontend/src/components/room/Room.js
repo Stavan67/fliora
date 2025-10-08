@@ -222,42 +222,31 @@ const Room = ({ user, onLogout }) => {
         switch (type) {
             case 'USER_JOINED':
                 addSystemMessage(message);
-
-                // Refresh participants list first
                 await refreshParticipants();
-
-                // Handle WebRTC connection for new participant
                 if (userId && String(userId) !== String(user.id)) {
                     console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
-                        // Give time for the new user to set up their connection
                         setTimeout(() => {
                             console.log('[Room] 🚀 Triggering WebRTC setup for new participant:', userId);
-                            // Don't call handleNewParticipant - the join message will be handled via WebSocket
-                            // Just ensure we're ready to receive their join message
                         }, 1000);
                     } else {
                         console.warn('[Room] ⚠️ WebRTC not ready yet, connection may be missed');
                     }
                 }
                 break;
-
             case 'USER_LEFT':
             case 'USER_KICKED':
                 await refreshParticipants();
                 addSystemMessage(message);
                 break;
-
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
                 break;
-
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
-
             default:
                 console.log('[Room] ❓ Unknown notification type:', type);
                 break;
@@ -410,22 +399,17 @@ const Room = ({ user, onLogout }) => {
 
     const cleanup = async () => {
         console.log('[Room] ðŸ§¹ Starting cleanup');
-
         if (videoStreamRef.current) {
             videoStreamRef.current.getTracks().forEach(track => track.stop());
             videoStreamRef.current = null;
         }
-
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
         }
-
         webRTCService.cleanup();
-
         if (stompClient) {
             stompClient.deactivate();
         }
-
         if (roomData) {
             try {
                 await apiClient.post(`/api/rooms/${roomData.roomCode}/leave`);
@@ -434,7 +418,6 @@ const Room = ({ user, onLogout }) => {
             }
         }
     };
-
     if (loading) {
         return (
             <div className="room-loading">
@@ -443,7 +426,6 @@ const Room = ({ user, onLogout }) => {
             </div>
         );
     }
-
     return (
         <div className="room-container">
             <nav className="room-navbar">
@@ -468,14 +450,12 @@ const Room = ({ user, onLogout }) => {
                     </button>
                 </div>
             </nav>
-
             {error && (
                 <div className="room-error-message">
                     {error}
                     <button onClick={() => setError('')}>Ã—</button>
                 </div>
             )}
-
             <div className="room-content">
                 <div className="room-main">
                     <VideoGrid
@@ -488,7 +468,6 @@ const Room = ({ user, onLogout }) => {
                         isHost={isHost}
                         onKickParticipant={handleKickParticipant}
                     />
-
                     <RoomControls
                         videoEnabled={videoEnabled}
                         audioEnabled={audioEnabled}
@@ -499,7 +478,6 @@ const Room = ({ user, onLogout }) => {
                         loading={loading}
                     />
                 </div>
-
                 <RoomSidebar
                     roomCode={roomData?.roomCode}
                     participants={participants}
@@ -514,5 +492,4 @@ const Room = ({ user, onLogout }) => {
         </div>
     );
 };
-
 export default Room;

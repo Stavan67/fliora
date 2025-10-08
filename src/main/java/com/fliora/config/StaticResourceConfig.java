@@ -13,7 +13,6 @@ public class StaticResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve static files from React build
         registry.addResourceHandler("/static/**")
                 .addResourceLocations("classpath:/static/static/");
 
@@ -25,12 +24,10 @@ public class StaticResourceConfig implements WebMvcConfigurer {
                     protected Resource getResource(String resourcePath, Resource location) throws IOException {
                         Resource requestedResource = location.createRelative(resourcePath);
 
-                        // If the resource exists, serve it
                         if (requestedResource.exists() && requestedResource.isReadable()) {
                             return requestedResource;
                         }
 
-                        // For any non-API routes, serve index.html (React routing)
                         if (!resourcePath.startsWith("api/")) {
                             return location.createRelative("index.html");
                         }

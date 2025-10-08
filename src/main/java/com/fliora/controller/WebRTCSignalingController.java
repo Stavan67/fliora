@@ -22,19 +22,45 @@ public class WebRTCSignalingController {
         try {
             String type = (String) message.get("type");
             String from = (String) message.get("from");
+            String to = (String) message.get("to");
 
-            // Log the signaling message
-            System.out.println("WebRTC Signaling - Room: " + roomCode + ", Type: " + type + ", From: " + from);
+            System.out.println("WebRTC Signaling - Room: " + roomCode +
+                    ", Type: " + type +
+                    ", From: " + from +
+                    ", To: " + to);
 
-            // For join messages, broadcast to all participants
-            // For targeted messages (offer/answer/ice-candidate), only send to the 'to' recipient
-            if ("join".equals(type)) {
-                // Broadcast join to everyone in the room so ALL existing participants can initiate connections
-                messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
-            } else {
-                // For other signaling messages, broadcast to the room
-                // The client-side filtering will handle who processes the message
-                messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+            // Handle different message types
+            switch (type) {
+                case "join":
+                    // Broadcast join to all participants so they know someone new arrived
+                    // This tells existing users to initiate connections
+                    messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+                    System.out.println("Broadcasting JOIN from " + from + " to room " + roomCode);
+                    break;
+
+                case "offer":
+                case "answer":
+                case "ice-candidate":
+                    // Send targeted messages only to the specific recipient
+                    if (to == null || to.isEmpty()) {
+                        System.err.println("ERROR: No 'to' field in " + type + " message from " + from);
+                        return;
+                    }
+
+                    // Send to specific user's personal topic
+                    String destination = "/topic/signal/" + roomCode + "/" + to;
+                    messagingTemplate.convertAndSend(destination, message);
+                    System.out.println("Sending " + type + " from " + from + " to " + to + " via " + destination);
+                    break;
+
+                case "leave":
+                    // Broadcast leave so everyone knows this user left
+                    messagingTemplate.convertAndSend("/topic/signal/" + roomCode, message);
+                    System.out.println("Broadcasting LEAVE from " + from + " to room " + roomCode);
+                    break;
+
+                default:
+                    System.err.println("Unknown message type: " + type);
             }
 
         } catch (Exception e) {
