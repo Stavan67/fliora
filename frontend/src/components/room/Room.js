@@ -229,6 +229,7 @@ const Room = ({ user, onLogout }) => {
                     if (webRTCReady) {
                         setTimeout(() => {
                             console.log('[Room] 🚀 Triggering WebRTC setup for new participant:', userId);
+                            webRTCService.handleJoin(userId);
                         }, 1000);
                     } else {
                         console.warn('[Room] ⚠️ WebRTC not ready yet, connection may be missed');
