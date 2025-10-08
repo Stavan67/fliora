@@ -152,14 +152,26 @@ const Room = ({ user, onLogout }) => {
                     setStompClient(client);
                     setWebRTCReady(true);
 
+                    // ✅ Notify join immediately
                     setTimeout(() => {
                         console.log('[Room] 📣 Notifying join to room');
                         webRTCService.notifyJoin();
+                    }, 500);
 
-                        setTimeout(() => {
+                    // ✅ THEN check for existing participants after a longer delay
+                    setTimeout(() => {
+                        console.log('[Room] 🔍 Checking for existing participants...');
+                        const currentParticipants = participantsRef.current;
+                        console.log('[Room] 📋 Participants to connect to:',
+                            currentParticipants.map(p => `${p.username}(${p.id})`));
+
+                        if (currentParticipants.length > 1) {
+                            // There are other participants besides me
                             initiateConnectionsToExistingParticipants();
-                        }, 500);
-                    }, 1000);
+                        } else {
+                            console.log('[Room] ℹ️ No existing participants to connect to');
+                        }
+                    }, 2000); // Increased delay to ensure participants list is loaded
 
                     resolve();
                 },
@@ -176,7 +188,6 @@ const Room = ({ user, onLogout }) => {
             client.activate();
         });
     };
-
 
     const initiateConnectionsToExistingParticipants = () => {
         const currentParticipants = participantsRef.current;
@@ -222,32 +233,49 @@ const Room = ({ user, onLogout }) => {
         switch (type) {
             case 'USER_JOINED':
                 addSystemMessage(message);
-                await refreshParticipants();
+
+                // ✅ First, refresh the participants list to include the new user
+                const updatedParticipants = await refreshParticipants();
+                console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => p.id));
+
+                // ✅ Then trigger WebRTC connection
                 if (userId && String(userId) !== String(user.id)) {
                     console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
+                        // Give a moment for the participant list to update
                         setTimeout(() => {
-                            console.log('[Room] 🚀 Triggering WebRTC setup for new participant:', userId);
+                            console.log('[Room] 🚀 Calling handleJoin for new participant:', userId);
                             webRTCService.handleJoin(userId);
-                        }, 1000);
+                        }, 500);
                     } else {
-                        console.warn('[Room] ⚠️ WebRTC not ready yet, connection may be missed');
+                        console.warn('[Room] ⚠️ WebRTC not ready yet, queueing connection');
+                        // Queue the connection for when WebRTC is ready
+                        setTimeout(() => {
+                            if (webRTCReady) {
+                                console.log('[Room] 🚀 WebRTC now ready, calling handleJoin:', userId);
+                                webRTCService.handleJoin(userId);
+                            }
+                        }, 2000);
                     }
                 }
                 break;
+
             case 'USER_LEFT':
             case 'USER_KICKED':
                 await refreshParticipants();
                 addSystemMessage(message);
                 break;
+
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
                 break;
+
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
+
             default:
                 console.log('[Room] ❓ Unknown notification type:', type);
                 break;
@@ -256,10 +284,19 @@ const Room = ({ user, onLogout }) => {
 
 
     const handleRemoteStream = (participantId, stream) => {
-        console.log('[Room] ðŸŽ¥ Adding remote stream for participant:', participantId);
+        const participantIdStr = String(participantId);
+        console.log('[Room] 🎥 handleRemoteStream called for:', participantIdStr);
+        console.log('[Room] 🎥 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
+        console.log('[Room] 🎥 Current participants:', participants.map(p => p.id));
+
+        // Check if this participant exists in our participants list
+        const participantExists = participants.some(p => String(p.id) === participantIdStr);
+        console.log('[Room] 🎥 Participant exists in list?', participantExists);
+
         setRemoteStreams(prev => {
             const newStreams = new Map(prev);
-            newStreams.set(participantId, stream);
+            newStreams.set(participantIdStr, stream);
+            console.log('[Room] 🎥 Updated remoteStreams, now has keys:', Array.from(newStreams.keys()));
             return newStreams;
         });
     };

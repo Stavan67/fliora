@@ -67,6 +67,8 @@ const VideoTile = ({ stream, participant, isLocal, isHost, onKick, showKickButto
     );
 };
 
+// If your VideoGrid.js looks something like this, here's the fix:
+
 const VideoGrid = ({
                        localStream,
                        remoteStreams,
@@ -77,48 +79,82 @@ const VideoGrid = ({
                        isHost,
                        onKickParticipant
                    }) => {
-    const getGridClass = () => {
-        const totalParticipants = participants.length;
-        if (totalParticipants === 1) return 'grid-1';
-        if (totalParticipants === 2) return 'grid-2';
-        if (totalParticipants <= 4) return 'grid-4';
-        if (totalParticipants <= 6) return 'grid-6';
-        if (totalParticipants <= 9) return 'grid-9';
-        return 'grid-many';
-    };
+    console.log('[VideoGrid] Rendering with:');
+    console.log('  - Participants:', participants.map(p => ({ id: p.id, username: p.username })));
+    console.log('  - Remote stream keys:', Array.from(remoteStreams.keys()));
+    console.log('  - Current user:', currentUser.id);
 
-    const currentParticipant = participants.find(p => p.id === currentUser.id);
+    // ✅ Create a map of participant IDs to participant objects for easy lookup
+    const participantMap = new Map(
+        participants.map(p => [String(p.id), p])
+    );
 
     return (
-        <div className={`video-grid ${getGridClass()}`}>
-            {/* Local video */}
-            <VideoTile
-                stream={localStream}
-                participant={{
-                    ...currentParticipant,
-                    username: currentUser.username,
-                    videoEnabled: videoEnabled,
-                    audioEnabled: audioEnabled
-                }}
-                isLocal={true}
-                isHost={isHost}
-            />
+        <div className="video-grid">
+            {/* Local video (current user) */}
+            <div className="video-container local">
+                <video
+                    ref={(el) => {
+                        if (el && localStream) {
+                            el.srcObject = localStream;
+                        }
+                    }}
+                    autoPlay
+                    muted
+                    playsInline
+                />
+                <div className="video-label">
+                    {currentUser.username} (You)
+                    {!videoEnabled && <span className="status-badge">📹 Off</span>}
+                    {!audioEnabled && <span className="status-badge">🔇 Muted</span>}
+                </div>
+            </div>
 
-            {/* Remote videos */}
-            {participants
-                .filter(p => p.id !== currentUser.id)
-                .map(participant => (
-                    <VideoTile
-                        key={participant.id}
-                        stream={remoteStreams.get(participant.id)}
-                        participant={participant}
-                        isLocal={false}
-                        isHost={isHost}
-                        onKick={onKickParticipant}
-                        showKickButton={isHost}
-                    />
-                ))
-            }
+            {/* Remote videos - show all remote streams */}
+            {Array.from(remoteStreams.entries()).map(([participantId, stream]) => {
+                const participantIdStr = String(participantId);
+
+                // ✅ Try to find participant info, use placeholder if not found yet
+                const participant = participantMap.get(participantIdStr);
+                const displayName = participant ? participant.username : `User ${participantIdStr.substring(0, 8)}`;
+
+                console.log('[VideoGrid] Rendering remote video for:', participantIdStr, 'name:', displayName);
+
+                return (
+                    <div key={participantIdStr} className="video-container remote">
+                        <video
+                            ref={(el) => {
+                                if (el && stream) {
+                                    console.log('[VideoGrid] Setting stream for:', participantIdStr);
+                                    el.srcObject = stream;
+                                }
+                            }}
+                            autoPlay
+                            playsInline
+                        />
+                        <div className="video-label">
+                            {displayName}
+                            {participant && !participant.videoEnabled && (
+                                <span className="status-badge">📹 Off</span>
+                            )}
+                            {participant && !participant.audioEnabled && (
+                                <span className="status-badge">🔇 Muted</span>
+                            )}
+                        </div>
+
+                        {/* Kick button for host */}
+                        {isHost && participant && participantIdStr !== String(currentUser.id) && (
+                            <button
+                                className="kick-button"
+                                onClick={() => onKickParticipant(participantIdStr)}
+                                title="Remove participant"
+                            >
+                                ❌
+                            </button>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 };
