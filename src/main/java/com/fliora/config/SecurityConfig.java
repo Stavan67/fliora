@@ -1,5 +1,6 @@
 package com.fliora.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,8 +10,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.RegisterSessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
@@ -25,9 +25,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final Environment env;
+    private final SecurityPathFilter securityPathFilter;
 
-    public SecurityConfig(Environment env) {
+    @Autowired
+    public SecurityConfig(Environment env, SecurityPathFilter securityPathFilter) {
         this.env = env;
+        this.securityPathFilter = securityPathFilter;
     }
 
     @Value("${app.frontend-url:http://localhost:3000}")
@@ -48,6 +51,8 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Add security path filter BEFORE Spring Security processing
+                .addFilterBefore(securityPathFilter, UsernamePasswordAuthenticationFilter.class)
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository())
                         .requireExplicitSave(false)
@@ -71,7 +76,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(org.springframework.security.config.http.SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation().newSession()
-                        .maximumSessions(1)
+                        .maximumSessions(2) // Increased slightly to allow reconnections
                         .maxSessionsPreventsLogin(false)
                 )
                 .formLogin(form -> form.disable())

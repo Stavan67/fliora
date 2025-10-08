@@ -90,13 +90,10 @@ const Room = ({ user, onLogout }) => {
 
     const initializeRoom = async (room) => {
         try {
-            // Step 1: Get media first
             await initializeMedia();
 
-            // Step 2: Load participants BEFORE connecting WebSocket
             await loadParticipants(room.roomCode);
 
-            // Step 3: Connect WebSocket and setup WebRTC
             await connectWebSocket(room);
 
             addSystemMessage(`Welcome to ${room.roomName}!`);
@@ -143,12 +140,10 @@ const Room = ({ user, onLogout }) => {
                 onConnect: () => {
                     console.log('[Room] 🔌 WebSocket connected');
 
-                    // Subscribe to room notifications
                     client.subscribe(`/topic/room/${room.roomCode}`, (message) => {
                         handleRoomNotification(JSON.parse(message.body));
                     });
 
-                    // Initialize WebRTC with current stream
                     const currentStream = videoStreamRef.current || localStream;
                     webRTCService.initialize(client, room.roomCode, user.id, currentStream);
                     webRTCService.onRemoteStream = handleRemoteStream;
@@ -157,12 +152,10 @@ const Room = ({ user, onLogout }) => {
                     setStompClient(client);
                     setWebRTCReady(true);
 
-                    // CRITICAL: Notify join AFTER everything is set up
                     setTimeout(() => {
                         console.log('[Room] 📣 Notifying join to room');
                         webRTCService.notifyJoin();
 
-                        // For existing participants, initiate connections with additional delay
                         setTimeout(() => {
                             initiateConnectionsToExistingParticipants();
                         }, 500);
@@ -199,16 +192,13 @@ const Room = ({ user, onLogout }) => {
             const participantIdStr = String(participant.id);
             const currentUserIdStr = String(user.id);
 
-            // Don't connect to ourselves
             if (participantIdStr !== currentUserIdStr) {
                 console.log('[Room] 🔗 Processing existing participant:',
                     participant.username, '(', participantIdStr, ')');
 
-                // Always create peer connection first
                 webRTCService.createPeerConnection(participantIdStr).then(() => {
                     console.log('[Room] ✅ Peer connection created for existing participant:', participantIdStr);
 
-                    // Determine who should initiate
                     if (webRTCService.shouldInitiateConnection(currentUserIdStr, participantIdStr)) {
                         console.log('[Room] 🎯 I should initiate to:', participantIdStr);
                         setTimeout(() => {
