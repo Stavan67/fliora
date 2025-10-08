@@ -26,21 +26,27 @@ class WebRTCService {
         this.currentUserId = String(userId);
         this.localStream = localStream;
 
-        console.log('[WebRTC] Initializing for user:', this.currentUserId, 'in room:', roomCode);
+        console.log('[WebRTC] 🔧 INITIALIZING:');
+        console.log('  - User ID:', this.currentUserId);
+        console.log('  - Room Code:', roomCode);
+        console.log('  - Subscribing to room topic:', `/topic/signal/${roomCode}`);
+        console.log('  - Subscribing to personal topic:', `/topic/signal/${roomCode}/${this.currentUserId}`);
 
+        // Room-wide subscription
         const roomSub = this.stompClient.subscribe(`/topic/signal/${roomCode}`, (message) => {
-            console.log('[WebRTC] 📨 Received room-wide message');
+            console.log('[WebRTC] 📨 ROOM MESSAGE:', message.body);
             this.handleSignalingMessage(JSON.parse(message.body));
         });
         this.subscriptions.push(roomSub);
 
+        // Personal subscription
         const personalSub = this.stompClient.subscribe(`/topic/signal/${roomCode}/${this.currentUserId}`, (message) => {
-            console.log('[WebRTC] 📬 Received personal message');
+            console.log('[WebRTC] 📬 PERSONAL MESSAGE:', message.body);
             this.handleSignalingMessage(JSON.parse(message.body));
         });
         this.subscriptions.push(personalSub);
 
-        console.log('[WebRTC] ✅ Subscribed to room-wide and personal topics');
+        console.log('[WebRTC] ✅ Both subscriptions created successfully');
     }
 
     async createPeerConnection(participantId) {
