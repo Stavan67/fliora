@@ -29,10 +29,16 @@ const Room = ({ user, onLogout }) => {
     const initializationRef = useRef(false);
     const videoStreamRef = useRef(null);
     const participantsRef = useRef([]);
+    const roomDataRef = useRef(null); // Add ref to track roomData
 
     useEffect(() => {
         participantsRef.current = participants;
     }, [participants]);
+
+    // Update roomDataRef whenever roomData changes
+    useEffect(() => {
+        roomDataRef.current = roomData;
+    }, [roomData]);
 
     useEffect(() => {
         const roomCode = searchParams.get('room');
@@ -70,14 +76,22 @@ const Room = ({ user, onLogout }) => {
     const joinRoomByCode = async (roomCode) => {
         try {
             setLoading(true);
+            console.log('[Room] 🎯 Joining room by code:', roomCode);
+
             const response = await apiClient.post(`/api/rooms/${roomCode}/join`);
             const room = {
                 roomCode: response.data.roomCode,
                 roomName: response.data.roomName,
                 isHost: response.data.isHost
             };
+
+            console.log('[Room] ✅ Successfully joined room:', room);
+
+            // Set room data BEFORE initializing
             setRoomData(room);
             setIsHost(room.isHost);
+
+            // Now initialize with the room object
             await initializeRoom(room);
         } catch (err) {
             console.error('Error joining room:', err);
@@ -88,9 +102,17 @@ const Room = ({ user, onLogout }) => {
 
     const initializeRoom = async (room) => {
         try {
+            console.log('[Room] 🚀 Initializing room:', room.roomCode);
+
+            // Initialize media first
             await initializeMedia();
+
+            // Load participants with the room code
             await loadParticipants(room.roomCode);
+
+            // Connect websocket
             await connectWebSocket(room);
+
             addSystemMessage(`Welcome to ${room.roomName}!`);
         } catch (err) {
             console.error('Error initializing room:', err);
@@ -116,7 +138,7 @@ const Room = ({ user, onLogout }) => {
             });
             videoStreamRef.current = stream;
             setLocalStream(stream);
-            console.log('[Room] âœ… Media initialized successfully');
+            console.log('[Room] ✅ Media initialized successfully');
         } catch (err) {
             console.error('Error accessing media devices:', err);
             setError('Failed to access camera/microphone. Please check permissions.');
@@ -203,7 +225,7 @@ const Room = ({ user, onLogout }) => {
                         setTimeout(() => {
                             console.log('[Room] 🚀 Creating offer to existing participant:', participantIdStr);
                             webRTCService.createOffer(participantIdStr);
-                        }, 1200); // Staggered timing to avoid conflicts
+                        }, 1200);
                     } else {
                         console.log('[Room] ⏳ They should initiate to me:', participantIdStr);
                     }
@@ -280,7 +302,7 @@ const Room = ({ user, onLogout }) => {
     };
 
     const handleRemoteParticipantLeft = (participantId) => {
-        console.log('[Room] ðŸ‘‹ Removing remote stream for participant:', participantId);
+        console.log('[Room] 👋 Removing remote stream for participant:', participantId);
         setRemoteStreams(prev => {
             const newStreams = new Map(prev);
             newStreams.delete(participantId);
@@ -303,10 +325,15 @@ const Room = ({ user, onLogout }) => {
     };
 
     const refreshParticipants = async () => {
-        if (roomData) {
-            return await loadParticipants(roomData.roomCode);
+        // Use the ref to get the current roomData
+        const currentRoomData = roomDataRef.current;
+        if (currentRoomData && currentRoomData.roomCode) {
+            console.log('[Room] 🔄 Refreshing participants for room:', currentRoomData.roomCode);
+            return await loadParticipants(currentRoomData.roomCode);
+        } else {
+            console.error('[Room] ❌ Cannot refresh participants: roomData not available');
+            return [];
         }
-        return [];
     };
 
     const toggleVideo = async () => {
@@ -322,10 +349,12 @@ const Room = ({ user, onLogout }) => {
         }
 
         try {
-            await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
-                videoEnabled: newVideoState,
-                audioEnabled: audioEnabled
-            });
+            if (roomData && roomData.roomCode) {
+                await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
+                    videoEnabled: newVideoState,
+                    audioEnabled: audioEnabled
+                });
+            }
         } catch (err) {
             console.error('Failed to update video status:', err);
         }
@@ -344,10 +373,12 @@ const Room = ({ user, onLogout }) => {
         }
 
         try {
-            await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
-                videoEnabled: videoEnabled,
-                audioEnabled: newAudioState
-            });
+            if (roomData && roomData.roomCode) {
+                await apiClient.post(`/api/rooms/${roomData.roomCode}/media`, {
+                    videoEnabled: videoEnabled,
+                    audioEnabled: newAudioState
+                });
+            }
         } catch (err) {
             console.error('Failed to update audio status:', err);
         }
@@ -391,8 +422,10 @@ const Room = ({ user, onLogout }) => {
     const handleStartWatchParty = async () => {
         try {
             setLoading(true);
-            await apiClient.post(`/api/rooms/${roomData.roomCode}/start`);
-            addSystemMessage('Starting Watch Party...');
+            if (roomData && roomData.roomCode) {
+                await apiClient.post(`/api/rooms/${roomData.roomCode}/start`);
+                addSystemMessage('Starting Watch Party...');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to start watch party');
         } finally {
@@ -402,7 +435,9 @@ const Room = ({ user, onLogout }) => {
 
     const handleKickParticipant = async (participantId) => {
         try {
-            await apiClient.post(`/api/rooms/${roomData.roomCode}/kick/${participantId}`);
+            if (roomData && roomData.roomCode) {
+                await apiClient.post(`/api/rooms/${roomData.roomCode}/kick/${participantId}`);
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to kick participant');
         }
@@ -414,7 +449,7 @@ const Room = ({ user, onLogout }) => {
     };
 
     const cleanup = async () => {
-        console.log('[Room] ðŸ§¹ Starting cleanup');
+        console.log('[Room] 🧹 Starting cleanup');
         if (videoStreamRef.current) {
             videoStreamRef.current.getTracks().forEach(track => track.stop());
             videoStreamRef.current = null;
@@ -426,14 +461,18 @@ const Room = ({ user, onLogout }) => {
         if (stompClient) {
             stompClient.deactivate();
         }
-        if (roomData) {
+
+        // Use ref for cleanup
+        const currentRoomData = roomDataRef.current;
+        if (currentRoomData && currentRoomData.roomCode) {
             try {
-                await apiClient.post(`/api/rooms/${roomData.roomCode}/leave`);
+                await apiClient.post(`/api/rooms/${currentRoomData.roomCode}/leave`);
             } catch (err) {
                 console.error('Failed to leave room:', err);
             }
         }
     };
+
     if (loading) {
         return (
             <div className="room-loading">
@@ -442,6 +481,7 @@ const Room = ({ user, onLogout }) => {
             </div>
         );
     }
+
     return (
         <div className="room-container">
             <nav className="room-navbar">
@@ -469,7 +509,7 @@ const Room = ({ user, onLogout }) => {
             {error && (
                 <div className="room-error-message">
                     {error}
-                    <button onClick={() => setError('')}>Ã—</button>
+                    <button onClick={() => setError('')}>×</button>
                 </div>
             )}
             <div className="room-content">
