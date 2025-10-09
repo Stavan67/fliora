@@ -23,7 +23,6 @@ const Room = ({ user, onLogout }) => {
     const [error, setError] = useState('');
     const [stompClient, setStompClient] = useState(null);
     const [webRTCReady, setWebRTCReady] = useState(false);
-
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -31,7 +30,6 @@ const Room = ({ user, onLogout }) => {
     const videoStreamRef = useRef(null);
     const participantsRef = useRef([]);
 
-    // Keep participants ref in sync
     useEffect(() => {
         participantsRef.current = participants;
     }, [participants]);
@@ -91,11 +89,8 @@ const Room = ({ user, onLogout }) => {
     const initializeRoom = async (room) => {
         try {
             await initializeMedia();
-
             await loadParticipants(room.roomCode);
-
             await connectWebSocket(room);
-
             addSystemMessage(`Welcome to ${room.roomName}!`);
         } catch (err) {
             console.error('Error initializing room:', err);
@@ -139,7 +134,6 @@ const Room = ({ user, onLogout }) => {
                 heartbeatOutgoing: 4000,
                 onConnect: () => {
                     console.log('[Room] 🔌 WebSocket connected');
-
                     client.subscribe(`/topic/room/${room.roomCode}`, (message) => {
                         handleRoomNotification(JSON.parse(message.body));
                     });
@@ -152,27 +146,22 @@ const Room = ({ user, onLogout }) => {
                     setStompClient(client);
                     setWebRTCReady(true);
 
-                    // ✅ Notify join immediately
                     setTimeout(() => {
                         console.log('[Room] 📣 Notifying join to room');
                         webRTCService.notifyJoin();
                     }, 500);
 
-                    // ✅ THEN check for existing participants after a longer delay
                     setTimeout(() => {
                         console.log('[Room] 🔍 Checking for existing participants...');
                         const currentParticipants = participantsRef.current;
                         console.log('[Room] 📋 Participants to connect to:',
                             currentParticipants.map(p => `${p.username}(${p.id})`));
-
                         if (currentParticipants.length > 1) {
-                            // There are other participants besides me
                             initiateConnectionsToExistingParticipants();
                         } else {
                             console.log('[Room] ℹ️ No existing participants to connect to');
                         }
-                    }, 2000); // Increased delay to ensure participants list is loaded
-
+                    }, 2000);
                     resolve();
                 },
                 onDisconnect: () => {
@@ -184,7 +173,6 @@ const Room = ({ user, onLogout }) => {
                     reject(error);
                 }
             });
-
             client.activate();
         });
     };
@@ -234,23 +222,19 @@ const Room = ({ user, onLogout }) => {
             case 'USER_JOINED':
                 addSystemMessage(message);
 
-                // ✅ First, refresh the participants list to include the new user
                 const updatedParticipants = await refreshParticipants();
                 console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => p.id));
 
-                // ✅ Then trigger WebRTC connection
                 if (userId && String(userId) !== String(user.id)) {
                     console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
-                        // Give a moment for the participant list to update
                         setTimeout(() => {
                             console.log('[Room] 🚀 Calling handleJoin for new participant:', userId);
                             webRTCService.handleJoin(userId);
                         }, 500);
                     } else {
                         console.warn('[Room] ⚠️ WebRTC not ready yet, queueing connection');
-                        // Queue the connection for when WebRTC is ready
                         setTimeout(() => {
                             if (webRTCReady) {
                                 console.log('[Room] 🚀 WebRTC now ready, calling handleJoin:', userId);
@@ -260,28 +244,23 @@ const Room = ({ user, onLogout }) => {
                     }
                 }
                 break;
-
             case 'USER_LEFT':
             case 'USER_KICKED':
                 await refreshParticipants();
                 addSystemMessage(message);
                 break;
-
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
                 break;
-
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
-
             default:
                 console.log('[Room] ❓ Unknown notification type:', type);
                 break;
         }
     };
-
 
     const handleRemoteStream = (participantId, stream) => {
         const participantIdStr = String(participantId);
@@ -289,7 +268,6 @@ const Room = ({ user, onLogout }) => {
         console.log('[Room] 🎥 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
         console.log('[Room] 🎥 Current participants:', participants.map(p => p.id));
 
-        // Check if this participant exists in our participants list
         const participantExists = participants.some(p => String(p.id) === participantIdStr);
         console.log('[Room] 🎥 Participant exists in list?', participantExists);
 
@@ -317,7 +295,7 @@ const Room = ({ user, onLogout }) => {
             const loadedParticipants = response.data.participants;
             console.log('[Room] ✅ Loaded participants:', loadedParticipants.map(p => ({ id: p.id, username: p.username })));
             setParticipants(loadedParticipants);
-            return loadedParticipants; // Return the participants
+            return loadedParticipants;
         } catch (err) {
             console.error('[Room] ❌ Failed to load participants:', err);
             return [];

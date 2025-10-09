@@ -84,13 +84,13 @@ const VideoGrid = ({
     console.log('  - Remote stream keys:', Array.from(remoteStreams.keys()));
     console.log('  - Current user:', currentUser.id);
 
-    // ✅ Create a map of participant IDs to participant objects for easy lookup
+    const totalParticipants = 1 + remoteStreams.size;
     const participantMap = new Map(
         participants.map(p => [String(p.id), p])
     );
 
     return (
-        <div className="video-grid">
+        <div className="video-grid" data-participant-count={totalParticipants}>
             {/* Local video (current user) */}
             <div className="video-container local">
                 <video
