@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import authService from '../../services/authService';
 import '../../styles/LoginPage.css'
 
@@ -16,6 +16,17 @@ const LoginPage = ({ onLogin }) => {
     const [showPassword, setShowPassword] = useState(false);
 
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    // Get room code from URL if present
+    const roomCode = searchParams.get('room');
+
+    useEffect(() => {
+        // Store room code in sessionStorage if present
+        if (roomCode) {
+            sessionStorage.setItem('pendingRoomCode', roomCode);
+        }
+    }, [roomCode]);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -67,13 +78,23 @@ const LoginPage = ({ onLogin }) => {
 
             if(response.success) {
                 onLogin(response.user);
-                navigate('/dashboard');
+
+                // Check if there's a pending room code
+                const pendingRoom = sessionStorage.getItem('pendingRoomCode');
+                if (pendingRoom) {
+                    sessionStorage.removeItem('pendingRoomCode');
+                    // Navigate to room with the code
+                    navigate(`/room?room=${pendingRoom}`);
+                } else {
+                    navigate('/dashboard');
+                }
             }
         } catch (error) {
             console.error('Login error:', error);
 
             if(error.requiresEmailVerification) {
                 setUserEmail(formData.usernameOrEmail);
+                setShowEmailVerification(true);
             } else {
                 setErrors({
                     general: error.message || 'Login failed. Please try again.'
@@ -125,7 +146,11 @@ const LoginPage = ({ onLogin }) => {
         <div className="auth-page">
             <div className="form-container">
                 <h2 className="form-title">Welcome Back</h2>
-                <p className="login-subtitle">Sign In To Your Fliora Account</p>
+                <p className="login-subtitle">
+                    {roomCode
+                        ? `Sign In To Join Room ${roomCode}`
+                        : 'Sign In To Your Fliora Account'}
+                </p>
 
                 {errors.general && (
                     <div className="alert error">
@@ -201,7 +226,7 @@ const LoginPage = ({ onLogin }) => {
                 </form>
 
                 <div className="form-footer">
-                    Don't Have An Account? <Link to="/register" className="form-link">Sign Up Here</Link>
+                    Don't Have An Account? <Link to={roomCode ? `/register?room=${roomCode}` : "/register"} className="form-link">Sign Up Here</Link>
                 </div>
             </div>
         </div>

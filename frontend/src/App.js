@@ -1,6 +1,6 @@
 import React, { useState, useEffect} from "react";
 import authService from './services/authService'
-import { BrowserRouter as Router, Navigate, Route, Routes} from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import EmailVerification from './components/auth/EmailVerification';
@@ -8,6 +8,33 @@ import Dashboard from './components/dashboard/Dashboard';
 import Room from './components/room/Room';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import './styles/App.css'
+
+// New component to handle root route with room code
+function RootRedirect({ isAuthenticated }) {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const roomCode = searchParams.get('room');
+
+    useEffect(() => {
+        if (roomCode) {
+            // Store room code for after login
+            sessionStorage.setItem('pendingRoomCode', roomCode);
+
+            if (isAuthenticated) {
+                // User is logged in, go to room
+                navigate(`/room?room=${roomCode}`, { replace: true });
+            } else {
+                // User not logged in, go to login with room code
+                navigate(`/login?room=${roomCode}`, { replace: true });
+            }
+        } else {
+            // No room code, normal redirect
+            navigate(isAuthenticated ? "/dashboard" : "/login", { replace: true });
+        }
+    }, [roomCode, isAuthenticated, navigate]);
+
+    return null; // This component just handles redirects
+}
 
 function App() {
     const [user, setUser] = useState(null);
@@ -59,9 +86,8 @@ function App() {
                 <div className="auth-page">
                     <div className="form-container">
                         <div style={{ textAlign: 'center' }}>
-                            <div className="loading-spinner" style={{ margin: '20px auto' }}>
-                                <p>Loading...</p>
-                            </div>
+                            <div className="loading-spinner" style={{ margin: '20px auto' }}></div>
+                            <p>Loading...</p>
                         </div>
                     </div>
                 </div>
@@ -111,9 +137,7 @@ function App() {
                     />
                     <Route
                         path="/"
-                        element={
-                            <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
-                        }
+                        element={<RootRedirect isAuthenticated={isAuthenticated} />}
                     />
                 </Routes>
             </div>
