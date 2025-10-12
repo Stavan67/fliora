@@ -1,4 +1,5 @@
 E:\fliora\fliora\src\main\java\com\fliora\config\SecurityConfig.java
+E:\fliora\fliora\src\main\java\com\fliora\config\SecurityPathFilter.java
 E:\fliora\fliora\src\main\java\com\fliora\config\SessionDebugFilter.java
 E:\fliora\fliora\src\main\java\com\fliora\config\StaticResourceConfig.java
 E:\fliora\fliora\src\main\java\com\fliora\config\WebSocketConfig.java
@@ -7,6 +8,7 @@ E:\fliora\fliora\src\main\java\com\fliora\controller\HealthController.java
 E:\fliora\fliora\src\main\java\com\fliora\controller\RoomController.java
 E:\fliora\fliora\src\main\java\com\fliora\controller\SendGridTestController.java
 E:\fliora\fliora\src\main\java\com\fliora\controller\TestController.java
+E:\fliora\fliora\src\main\java\com\fliora\controller\WebRTCSignalingController.java
 E:\fliora\fliora\src\main\java\com\fliora\dto\LoginDto.java
 E:\fliora\fliora\src\main\java\com\fliora\dto\UserRegistrationDto.java
 E:\fliora\fliora\src\main\java\com\fliora\entity\ParticipantRole.java

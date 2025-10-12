@@ -76,7 +76,7 @@ const Room = ({ user, onLogout }) => {
     const joinRoomByCode = async (roomCode) => {
         try {
             setLoading(true);
-            console.log('[Room] 🎯 Joining room by code:', roomCode);
+            console.log('[Room] Joining room by code:', roomCode);
 
             const response = await apiClient.post(`/api/rooms/${roomCode}/join`);
             const room = {
@@ -85,7 +85,7 @@ const Room = ({ user, onLogout }) => {
                 isHost: response.data.isHost
             };
 
-            console.log('[Room] ✅ Successfully joined room:', room);
+            console.log('[Room] Successfully joined room:', room);
 
             // Set room data BEFORE initializing
             setRoomData(room);
