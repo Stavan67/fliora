@@ -31,8 +31,9 @@ COPY --from=backend-build /app/target/fliora-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
-# CRITICAL: Set JVM memory limits and optimize garbage collection
-ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Djava.security.egd=file:/dev/./urandom"
+# CRITICAL: Optimized for Render's 512MB free tier
+# Reduced max heap from 512m to 450m to leave room for non-heap memory
+ENV JAVA_OPTS="-Xms256m -Xmx450m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -Djava.security.egd=file:/dev/./urandom"
 
-# Use the PORT environment variable that Railway provides
+# Render provides PORT environment variable
 CMD java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar app.jar
