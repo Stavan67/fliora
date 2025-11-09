@@ -21,8 +21,8 @@ COPY --from=frontend-build /app/frontend/build ./src/main/resources/static
 # Build the JAR file (now includes the frontend)
 RUN mvn clean package -DskipTests
 
-# Final stage - Use slim image
-FROM openjdk:17-jdk-slim
+# Final stage - Use Eclipse Temurin (official OpenJDK replacement)
+FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
