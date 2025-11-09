@@ -50,7 +50,7 @@ const VideoGrid = ({
                 )}
                 <div className="video-label">
                     {currentUser.username} (You)
-                    {!videoEnabled && <span className="status-badge">📹 Off</span>}
+                    {!videoEnabled && <span className="status-badge">🔹 Off</span>}
                     {!audioEnabled && <span className="status-badge">🔇 Muted</span>}
                 </div>
             </div>
@@ -100,8 +100,8 @@ const VideoGrid = ({
                         <div className="video-label">
                             {displayName}
                             {participantIsHost && <span className="host-badge">👑</span>}
-                            {!remoteVideoEnabled && <span className="status-badge">📹 Off</span>}
-                            {!remoteAudioEnabled && <span className="status-badge">🔇 Muted</span>}
+                            {!remoteVideoEnabled && <span className="status-badge">🔹</span>}
+                            {!remoteAudioEnabled && <span className="status-badge">🔇</span>}
                         </div>
 
                         {/* Kick button for host - only show if we have participant data and it's not the current user */}

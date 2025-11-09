@@ -23,19 +23,20 @@ const Room = ({ user, onLogout }) => {
     const [error, setError] = useState('');
     const [stompClient, setStompClient] = useState(null);
     const [webRTCReady, setWebRTCReady] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [activeSidebarView, setActiveSidebarView] = useState('participants'); // 'participants' or 'chat'
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const initializationRef = useRef(false);
     const videoStreamRef = useRef(null);
     const participantsRef = useRef([]);
-    const roomDataRef = useRef(null); // Add ref to track roomData
+    const roomDataRef = useRef(null);
 
     useEffect(() => {
         participantsRef.current = participants;
     }, [participants]);
 
-    // Update roomDataRef whenever roomData changes
     useEffect(() => {
         roomDataRef.current = roomData;
     }, [roomData]);
@@ -87,11 +88,9 @@ const Room = ({ user, onLogout }) => {
 
             console.log('[Room] Successfully joined room:', room);
 
-            // Set room data BEFORE initializing
             setRoomData(room);
             setIsHost(room.isHost);
 
-            // Now initialize with the room object
             await initializeRoom(room);
         } catch (err) {
             console.error('Error joining room:', err);
@@ -104,13 +103,8 @@ const Room = ({ user, onLogout }) => {
         try {
             console.log('[Room] 🚀 Initializing room:', room.roomCode);
 
-            // Initialize media first
             await initializeMedia();
-
-            // Load participants with the room code
             await loadParticipants(room.roomCode);
-
-            // Connect websocket
             await connectWebSocket(room);
 
             addSystemMessage(`Welcome to ${room.roomName}!`);
@@ -242,22 +236,19 @@ const Room = ({ user, onLogout }) => {
 
         switch (type) {
             case 'USER_JOINED':
-                // First refresh participants to ensure the new user is in the list
                 const updatedParticipants = await refreshParticipants();
                 console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => ({ id: p.id, username: p.username })));
 
-                // Add system message
                 addSystemMessage(message);
 
                 if (userId && String(userId) !== String(user.id)) {
                     console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
-                        // Wait a bit longer to ensure participant data is loaded
                         setTimeout(() => {
                             console.log('[Room] 🚀 Calling handleJoin for new participant:', userId);
                             webRTCService.handleJoin(userId);
-                        }, 1000); // Increased from 500ms to 1000ms
+                        }, 1000);
                     } else {
                         console.warn('[Room] ⚠️ WebRTC not ready yet, queueing connection');
                         setTimeout(() => {
@@ -292,7 +283,6 @@ const Room = ({ user, onLogout }) => {
         console.log('[Room] 🎥 handleRemoteStream called for:', participantIdStr);
         console.log('[Room] 🎥 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
 
-        // Always add the stream immediately so video shows up
         setRemoteStreams(prev => {
             const newStreams = new Map(prev);
             newStreams.set(participantIdStr, stream);
@@ -300,11 +290,9 @@ const Room = ({ user, onLogout }) => {
             return newStreams;
         });
 
-        // Check if participant data exists
         const participantExists = participants.some(p => String(p.id) === participantIdStr);
         console.log('[Room] 🎥 Participant exists in list?', participantExists);
 
-        // If participant doesn't exist yet, refresh the participant list
         if (!participantExists) {
             console.log('[Room] 🔄 Participant not in list, refreshing...');
             await refreshParticipants();
@@ -336,7 +324,6 @@ const Room = ({ user, onLogout }) => {
     };
 
     const refreshParticipants = async () => {
-        // Use the ref to get the current roomData
         const currentRoomData = roomDataRef.current;
         if (currentRoomData && currentRoomData.roomCode) {
             console.log('[Room] 🔄 Refreshing participants for room:', currentRoomData.roomCode);
@@ -473,7 +460,6 @@ const Room = ({ user, onLogout }) => {
             stompClient.deactivate();
         }
 
-        // Use ref for cleanup
         const currentRoomData = roomDataRef.current;
         if (currentRoomData && currentRoomData.roomCode) {
             try {
@@ -482,6 +468,20 @@ const Room = ({ user, onLogout }) => {
                 console.error('Failed to leave room:', err);
             }
         }
+    };
+
+    const toggleSidebar = (view) => {
+        if (sidebarOpen && activeSidebarView === view) {
+            setSidebarOpen(false);
+        } else {
+            setActiveSidebarView(view);
+            setSidebarOpen(true);
+        }
+    };
+
+    const getUnreadChatCount = () => {
+        // This is a simple implementation - you can enhance it with proper read/unread tracking
+        return chatMessages.filter(msg => msg.type === 'user').length > 0 && !sidebarOpen ? chatMessages.length : 0;
     };
 
     if (loading) {
@@ -524,7 +524,36 @@ const Room = ({ user, onLogout }) => {
                 </div>
             )}
             <div className="room-content">
-                <div className="room-main">
+                <div className={`room-main ${sidebarOpen ? 'sidebar-open' : ''}`}>
+                    <div className="sidebar-toggle-buttons">
+                        <button
+                            className={`sidebar-toggle-btn ${sidebarOpen && activeSidebarView === 'participants' ? 'active' : ''}`}
+                            onClick={() => toggleSidebar('participants')}
+                            title="Participants"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <circle cx="9" cy="7" r="4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span>{participants.length}</span>
+                        </button>
+                        <button
+                            className={`sidebar-toggle-btn ${sidebarOpen && activeSidebarView === 'chat' ? 'active' : ''}`}
+                            onClick={() => toggleSidebar('chat')}
+                            title="Chat"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span>Chat</span>
+                            {!sidebarOpen && chatMessages.length > 0 && (
+                                <span className="badge">{chatMessages.length}</span>
+                            )}
+                        </button>
+                    </div>
+
                     <VideoGrid
                         localStream={localStream}
                         remoteStreams={remoteStreams}
@@ -546,6 +575,9 @@ const Room = ({ user, onLogout }) => {
                     />
                 </div>
                 <RoomSidebar
+                    isOpen={sidebarOpen}
+                    activeView={activeSidebarView}
+                    onClose={() => setSidebarOpen(false)}
                     roomCode={roomData?.roomCode}
                     participants={participants}
                     chatMessages={chatMessages}
@@ -559,4 +591,5 @@ const Room = ({ user, onLogout }) => {
         </div>
     );
 };
+
 export default Room;
