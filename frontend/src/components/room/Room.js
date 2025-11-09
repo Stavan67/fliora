@@ -242,19 +242,22 @@ const Room = ({ user, onLogout }) => {
 
         switch (type) {
             case 'USER_JOINED':
-                addSystemMessage(message);
-
+                // First refresh participants to ensure the new user is in the list
                 const updatedParticipants = await refreshParticipants();
-                console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => p.id));
+                console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => ({ id: p.id, username: p.username })));
+
+                // Add system message
+                addSystemMessage(message);
 
                 if (userId && String(userId) !== String(user.id)) {
                     console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
+                        // Wait a bit longer to ensure participant data is loaded
                         setTimeout(() => {
                             console.log('[Room] 🚀 Calling handleJoin for new participant:', userId);
                             webRTCService.handleJoin(userId);
-                        }, 500);
+                        }, 1000); // Increased from 500ms to 1000ms
                     } else {
                         console.warn('[Room] ⚠️ WebRTC not ready yet, queueing connection');
                         setTimeout(() => {
@@ -284,21 +287,29 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    const handleRemoteStream = (participantId, stream) => {
+    const handleRemoteStream = async (participantId, stream) => {
         const participantIdStr = String(participantId);
         console.log('[Room] 🎥 handleRemoteStream called for:', participantIdStr);
         console.log('[Room] 🎥 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
-        console.log('[Room] 🎥 Current participants:', participants.map(p => p.id));
 
-        const participantExists = participants.some(p => String(p.id) === participantIdStr);
-        console.log('[Room] 🎥 Participant exists in list?', participantExists);
-
+        // Always add the stream immediately so video shows up
         setRemoteStreams(prev => {
             const newStreams = new Map(prev);
             newStreams.set(participantIdStr, stream);
             console.log('[Room] 🎥 Updated remoteStreams, now has keys:', Array.from(newStreams.keys()));
             return newStreams;
         });
+
+        // Check if participant data exists
+        const participantExists = participants.some(p => String(p.id) === participantIdStr);
+        console.log('[Room] 🎥 Participant exists in list?', participantExists);
+
+        // If participant doesn't exist yet, refresh the participant list
+        if (!participantExists) {
+            console.log('[Room] 🔄 Participant not in list, refreshing...');
+            await refreshParticipants();
+            console.log('[Room] ✅ Participants refreshed');
+        }
     };
 
     const handleRemoteParticipantLeft = (participantId) => {

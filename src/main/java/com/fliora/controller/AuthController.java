@@ -143,9 +143,9 @@ public class AuthController {
                         <head>
                             <title>Email Verified</title>
                             <style>
-                                body { 
-                                    font-family: Arial, sans-serif; 
-                                    text-align: center; 
+                                body {
+                                    font-family: Arial, sans-serif;
+                                    text-align: center;
                                     margin-top: 50px;
                                     background-color: #f5f5f5;
                                 }
@@ -198,9 +198,9 @@ public class AuthController {
                     <head>
                         <title>Verification Failed</title>
                         <style>
-                            body { 
-                                font-family: Arial, sans-serif; 
-                                text-align: center; 
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
                                 margin-top: 50px;
                                 background-color: #f5f5f5;
                             }
