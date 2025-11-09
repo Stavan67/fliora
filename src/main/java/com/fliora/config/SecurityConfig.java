@@ -89,8 +89,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(Arrays.asList(
-                "https://leopicks.com",
-                "https://www.leopicks.com"
+                "https://fliora.site",
+                "https://www.fliora.site"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
