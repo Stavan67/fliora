@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import apiClient from '../../services/apiClient';
 import webRTCService from '../../services/WebRTCService';
@@ -24,7 +24,7 @@ const Room = ({ user, onLogout }) => {
     const [stompClient, setStompClient] = useState(null);
     const [webRTCReady, setWebRTCReady] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [activeSidebarView, setActiveSidebarView] = useState('participants'); // 'participants' or 'chat'
+    const [activeSidebarView, setActiveSidebarView] = useState('participants');
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -32,6 +32,7 @@ const Room = ({ user, onLogout }) => {
     const videoStreamRef = useRef(null);
     const participantsRef = useRef([]);
     const roomDataRef = useRef(null);
+    const isKickedRef = useRef(false);
 
     useEffect(() => {
         participantsRef.current = participants;
@@ -67,12 +68,6 @@ const Room = ({ user, onLogout }) => {
             cleanup();
         };
     }, [location.state, searchParams, user]);
-
-    useEffect(() => {
-        console.log('[Room] Current participants:', participants.map(p => ({ id: p.id, username: p.username })));
-        console.log('[Room] Remote streams keys:', Array.from(remoteStreams.keys()));
-        console.log('[Room] Current user ID:', user.id);
-    }, [participants, remoteStreams, user]);
 
     const joinRoomByCode = async (roomCode) => {
         try {
@@ -261,9 +256,22 @@ const Room = ({ user, onLogout }) => {
                 }
                 break;
             case 'USER_LEFT':
-            case 'USER_KICKED':
                 await refreshParticipants();
                 addSystemMessage(message);
+                break;
+            case 'USER_KICKED':
+                // Check if the kicked user is the current user
+                if (String(userId) === String(user.id)) {
+                    console.log('[Room] 🚨 I have been kicked from the room');
+                    isKickedRef.current = true;
+                    addSystemMessage('You have been removed from the room by the host');
+                    setTimeout(() => {
+                        goBackToDashboard();
+                    }, 3000);
+                } else {
+                    await refreshParticipants();
+                    addSystemMessage(message);
+                }
                 break;
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
@@ -278,7 +286,7 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    const handleRemoteStream = async (participantId, stream) => {
+    const handleRemoteStream = useCallback(async (participantId, stream) => {
         const participantIdStr = String(participantId);
         console.log('[Room] 🎥 handleRemoteStream called for:', participantIdStr);
         console.log('[Room] 🎥 Stream tracks:', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
@@ -290,7 +298,7 @@ const Room = ({ user, onLogout }) => {
             return newStreams;
         });
 
-        const participantExists = participants.some(p => String(p.id) === participantIdStr);
+        const participantExists = participantsRef.current.some(p => String(p.id) === participantIdStr);
         console.log('[Room] 🎥 Participant exists in list?', participantExists);
 
         if (!participantExists) {
@@ -298,16 +306,16 @@ const Room = ({ user, onLogout }) => {
             await refreshParticipants();
             console.log('[Room] ✅ Participants refreshed');
         }
-    };
+    }, []);
 
-    const handleRemoteParticipantLeft = (participantId) => {
+    const handleRemoteParticipantLeft = useCallback((participantId) => {
         console.log('[Room] 👋 Removing remote stream for participant:', participantId);
         setRemoteStreams(prev => {
             const newStreams = new Map(prev);
             newStreams.delete(participantId);
             return newStreams;
         });
-    };
+    }, []);
 
     const loadParticipants = async (roomCode) => {
         try {
@@ -334,7 +342,8 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    const toggleVideo = async () => {
+    // Use useCallback to memoize toggle functions
+    const toggleVideo = useCallback(async () => {
         const newVideoState = !videoEnabled;
         setVideoEnabled(newVideoState);
 
@@ -356,9 +365,9 @@ const Room = ({ user, onLogout }) => {
         } catch (err) {
             console.error('Failed to update video status:', err);
         }
-    };
+    }, [videoEnabled, audioEnabled, roomData]);
 
-    const toggleAudio = async () => {
+    const toggleAudio = useCallback(async () => {
         const newAudioState = !audioEnabled;
         setAudioEnabled(newAudioState);
 
@@ -380,9 +389,9 @@ const Room = ({ user, onLogout }) => {
         } catch (err) {
             console.error('Failed to update audio status:', err);
         }
-    };
+    }, [audioEnabled, videoEnabled, roomData]);
 
-    const sendChatMessage = () => {
+    const sendChatMessage = useCallback(() => {
         if (!chatInput.trim()) return;
 
         const message = {
@@ -394,30 +403,30 @@ const Room = ({ user, onLogout }) => {
         };
         setChatMessages(prev => [...prev, message]);
         setChatInput('');
-    };
+    }, [chatInput, user.username]);
 
-    const addSystemMessage = (message) => {
+    const addSystemMessage = useCallback((message) => {
         setChatMessages(prev => [...prev, {
             id: Date.now(),
             type: 'system',
             message,
             timestamp: new Date().toLocaleTimeString()
         }]);
-    };
+    }, []);
 
-    const copyRoomLink = () => {
+    const copyRoomLink = useCallback(() => {
         const link = `${window.location.origin}/?room=${roomData.roomCode}`;
         navigator.clipboard.writeText(link);
         alert('Room link copied to clipboard!');
-    };
+    }, [roomData]);
 
-    const shareToWhatsApp = () => {
+    const shareToWhatsApp = useCallback(() => {
         const link = `${window.location.origin}/?room=${roomData.roomCode}`;
         const message = `Join my Fliora Watch Party!\n\nRoom Code: ${roomData.roomCode}\n${link}`;
         window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-    };
+    }, [roomData]);
 
-    const handleStartWatchParty = async () => {
+    const handleStartWatchParty = useCallback(async () => {
         try {
             setLoading(true);
             if (roomData && roomData.roomCode) {
@@ -429,17 +438,18 @@ const Room = ({ user, onLogout }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [roomData, addSystemMessage]);
 
-    const handleKickParticipant = async (participantId) => {
+    const handleKickParticipant = useCallback(async (participantId) => {
         try {
             if (roomData && roomData.roomCode) {
                 await apiClient.post(`/api/rooms/${roomData.roomCode}/kick/${participantId}`);
+                console.log('[Room] ✅ Kick request sent for participant:', participantId);
             }
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to kick participant');
         }
-    };
+    }, [roomData]);
 
     const goBackToDashboard = async () => {
         await cleanup();
@@ -461,7 +471,8 @@ const Room = ({ user, onLogout }) => {
         }
 
         const currentRoomData = roomDataRef.current;
-        if (currentRoomData && currentRoomData.roomCode) {
+        // Don't send leave request if user was kicked
+        if (currentRoomData && currentRoomData.roomCode && !isKickedRef.current) {
             try {
                 await apiClient.post(`/api/rooms/${currentRoomData.roomCode}/leave`);
             } catch (err) {
@@ -470,19 +481,14 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    const toggleSidebar = (view) => {
+    const toggleSidebar = useCallback((view) => {
         if (sidebarOpen && activeSidebarView === view) {
             setSidebarOpen(false);
         } else {
             setActiveSidebarView(view);
             setSidebarOpen(true);
         }
-    };
-
-    const getUnreadChatCount = () => {
-        // This is a simple implementation - you can enhance it with proper read/unread tracking
-        return chatMessages.filter(msg => msg.type === 'user').length > 0 && !sidebarOpen ? chatMessages.length : 0;
-    };
+    }, [sidebarOpen, activeSidebarView]);
 
     if (loading) {
         return (

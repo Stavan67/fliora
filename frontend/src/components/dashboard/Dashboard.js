@@ -1,4 +1,3 @@
-// components/dashboard/Dashboard.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../../services/apiClient'
@@ -24,7 +23,6 @@ const Dashboard = ({ user, onLogout }) => {
         try {
             setLoading(true);
             setError('');
-
             const validationResponse = await apiClient.get(`/api/rooms/${code}/validate`);
             if (!validationResponse.data.exists) {
                 setError('Room not found. Please check the room code.');
@@ -49,10 +47,7 @@ const Dashboard = ({ user, onLogout }) => {
             const response = await apiClient.post('/api/rooms/create', {
                 roomName: `${user.username}'s Room`
             });
-
             const room = response.data.room;
-
-            // Navigate to room with room data
             navigate('/room', {
                 state: { roomData: room }
             });
@@ -75,8 +70,6 @@ const Dashboard = ({ user, onLogout }) => {
         try {
             const response = await apiClient.post(`/api/rooms/${code}/join`);
             const room = response.data.room;
-
-            // Navigate to room with room data
             navigate('/room', {
                 state: { roomData: room }
             });
@@ -98,7 +91,6 @@ const Dashboard = ({ user, onLogout }) => {
                     </button>
                 </div>
             </nav>
-
             <div className="dashboard-content">
                 <div className="welcome-section">
                     <h1 className="dashboard-title">Welcome to Fliora!</h1>
@@ -106,14 +98,12 @@ const Dashboard = ({ user, onLogout }) => {
                         Watch Movies With Friends While Video Chatting
                     </p>
                 </div>
-
                 {error && (
                     <div className="error-message">
                         {error}
                         <button onClick={() => setError('')}>×</button>
                     </div>
                 )}
-
                 <div className="main-actions">
                     <div className="action-card">
                         <div className="action-icon">🎬</div>

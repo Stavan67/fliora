@@ -86,9 +86,17 @@ public class RoomService {
         Optional<RoomParticipant> existingParticipant = participantRepository.findByRoomAndUser(room, user);
         if(existingParticipant.isPresent()){
             RoomParticipant participant = existingParticipant.get();
+
+            // Check if user was kicked - prevent rejoin
+            if(participant.getStatus() == ParticipantStatus.KICKED) {
+                throw new RuntimeException("You have been removed from this room and cannot rejoin");
+            }
+
             if(participant.getStatus() == ParticipantStatus.ACTIVE) {
                 throw new RuntimeException("You are already in this room");
             }
+
+            // Allow rejoining if they just left normally
             participant.setStatus(ParticipantStatus.ACTIVE);
             participant.setLeftAt(null);
             participantRepository.save(participant);
@@ -138,10 +146,14 @@ public class RoomService {
             throw new RuntimeException("Cannot kick the host");
         }
 
+        // Mark as kicked
         participant.setStatus(ParticipantStatus.KICKED);
         participant.setLeftAt(LocalDateTime.now());
         participantRepository.save(participant);
 
+        System.out.println("✅ Participant kicked: " + participant.getUser().getUsername() + " (ID: " + participantUserId + ")");
+
+        // Notify all participants including the kicked user
         notifyRoomParticipants(room, "USER_KICKED", participant.getUser().getUsername() + " was removed from the room", participantUserId);
     }
 
@@ -228,6 +240,7 @@ public class RoomService {
             String destination = "/topic/room/" + room.getRoomCode();
             RoomNotification notification = new RoomNotification(type, message, LocalDateTime.now(), userId);
             messagingTemplate.convertAndSend(destination, notification);
+            System.out.println("📢 Notification sent - Type: " + type + ", UserId: " + userId);
         } catch(Exception e){
             System.err.println("Failed to send room notification: " + e.getMessage());
         }
