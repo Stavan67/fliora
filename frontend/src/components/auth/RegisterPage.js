@@ -21,13 +21,10 @@ const RegisterPage = () => {
     const [passwordStrength, setPasswordStrength] = useState({ score: 0, text: '', color: '' });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
     const navigate = useNavigate();
 
     const checkPasswordStrength = (password) => {
         let score = 0;
-
-        // Check each requirement individually
         const hasMinLength = password.length >= 8;
         const hasLowercase = /[a-z]/.test(password);
         const hasUppercase = /[A-Z]/.test(password);
@@ -40,7 +37,6 @@ const RegisterPage = () => {
         if (hasDigit) score++;
         if (hasSpecialChar) score++;
 
-        // Check if ALL requirements are met
         const hasAllRequirements = hasMinLength && hasLowercase && hasUppercase && hasDigit && hasSpecialChar;
 
         const strengthLevels = [
@@ -51,10 +47,9 @@ const RegisterPage = () => {
             { text: 'Strong', color: '#27ae60', index: 4 }
         ];
 
-        // Only show "Strong" if ALL requirements are met
         let displayScore = Math.min(score, 4);
         if (!hasAllRequirements && displayScore === 4) {
-            displayScore = 3; // Cap at "Good" if not all requirements are met
+            displayScore = 3;
         }
 
         const strengthData = strengthLevels[displayScore];
@@ -78,8 +73,6 @@ const RegisterPage = () => {
 
     const checkAvailability = async (type, value) => {
         if (!value.trim()) return;
-
-        // Client-side validation first
         if (type === 'username') {
             if (!isValidUsername(value)) {
                 setAvailability(prev => ({
@@ -108,23 +101,31 @@ const RegisterPage = () => {
         try {
             const response = await authService.checkAvailability(type, value);
             console.log(`✅ Availability response for ${type}:`, response);
-
-            if (response.available) {
-                setAvailability(prev => ({
-                    ...prev,
-                    [type]: {
-                        status: 'available',
-                        message: 'Available'
-                    }
-                }));
+            if (response && typeof response === 'object' && 'available' in response) {
+                if (response.available) {
+                    setAvailability(prev => ({
+                        ...prev,
+                        [type]: {
+                            status: 'available',
+                            message: 'Available'
+                        }
+                    }));
+                } else {
+                    const message = type === 'email' ? 'Email already registered' : 'Unavailable';
+                    setAvailability(prev => ({
+                        ...prev,
+                        [type]: {
+                            status: 'unavailable',
+                            message: message
+                        }
+                    }));
+                }
             } else {
-                // Handle specific case for email already registered
-                const message = type === 'email' ? 'Email already registered' : 'Unavailable';
                 setAvailability(prev => ({
                     ...prev,
                     [type]: {
-                        status: 'unavailable',
-                        message: message
+                        status: 'error',
+                        message: 'Check failed'
                     }
                 }));
             }
@@ -147,11 +148,12 @@ const RegisterPage = () => {
         }
     };
 
-    // Debounced availability check
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             if (formData.username && formData.username.length >= 1) {
-                checkAvailability('username', formData.username);
+                checkAvailability('username', formData.username).catch(err => {
+                    console.error('Username check error:', err);
+                });
             }
         }, 500);
 
@@ -161,7 +163,9 @@ const RegisterPage = () => {
     useEffect(() => {
         const timeoutId = setTimeout(() => {
             if (formData.email && formData.email.length >= 1) {
-                checkAvailability('email', formData.email);
+                checkAvailability('email', formData.email).catch(err => {
+                    console.error('Email check error:', err);
+                });
             }
         }, 500);
 
@@ -183,7 +187,6 @@ const RegisterPage = () => {
             [name]: value
         }));
 
-        // Clear error when user starts typing
         if (errors[name]) {
             setErrors(prev => ({
                 ...prev,
@@ -202,8 +205,6 @@ const RegisterPage = () => {
 
     const validateForm = () => {
         const newErrors = {};
-
-        // Username validation
         if (!formData.username.trim()) {
             newErrors.username = 'Username Is Required';
         } else if (formData.username.length < 3 || formData.username.length > 15) {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import authService from "../../services/authService";
 
 const EmailVerification = ({email, onBack }) => {
@@ -49,14 +49,14 @@ const EmailVerification = ({email, onBack }) => {
                         </p>
 
                         <div className="form-group" style={{ marginBottom: '20px' }}>
-                          <input
-                            type="email"
-                            value={resendEmail}
-                            onChange={(e) => setResendEmail(e.target.value)}
-                            placeholder="Enter your email address"
-                            className="form-input"
-                            style={{ textAlign: 'center' }}
-                          />
+                            <input
+                                type="email"
+                                value={resendEmail}
+                                onChange={(e) => setResendEmail(e.target.value)}
+                                placeholder="Enter your email address"
+                                className="form-input"
+                                style={{ textAlign: 'center' }}
+                            />
                         </div>
                         <div>
                             <button
@@ -76,7 +76,7 @@ const EmailVerification = ({email, onBack }) => {
                         </div>
                     </div>
                     <div className="form-footer" style={{ marginTop: '30px' }}>
-                        <p style={{ fontsize: '0.8rem', color: '#999' }}>
+                        <p style={{ fontSize: '0.8rem', color: '#999' }}>
                             Check your spam folder if you don't see the email in your inbox.
                         </p>
                     </div>

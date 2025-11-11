@@ -153,27 +153,6 @@ const Dashboard = ({ user, onLogout }) => {
                         </div>
                     </div>
                 </div>
-
-                <div className="features-preview">
-                    <h2>Coming Soon Features</h2>
-                    <div className="features-grid">
-                        <div className="feature-card">
-                            <div className="feature-icon">🍿</div>
-                            <h3>Movie Streaming</h3>
-                            <p>Stream Movies Together In Sync</p>
-                        </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">💬</div>
-                            <h3>Reactions</h3>
-                            <p>React And Comment During Movies</p>
-                        </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">📱</div>
-                            <h3>Mobile App</h3>
-                            <p>Watch On Your Mobile Device</p>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );

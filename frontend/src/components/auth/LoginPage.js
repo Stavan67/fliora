@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import authService from '../../services/authService';
 import '../../styles/LoginPage.css'
 
-
 const LoginPage = ({ onLogin }) => {
     const [formData, setFormData] = useState({
         usernameOrEmail: '',
@@ -14,15 +13,11 @@ const LoginPage = ({ onLogin }) => {
     const [showEmailVerification, setShowEmailVerification] = useState(false);
     const [userEmail, setUserEmail] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-
-    // Get room code from URL if present
     const roomCode = searchParams.get('room');
 
     useEffect(() => {
-        // Store room code in sessionStorage if present
         if (roomCode) {
             sessionStorage.setItem('pendingRoomCode', roomCode);
         }
@@ -34,7 +29,6 @@ const LoginPage = ({ onLogin }) => {
             ...prev,
             [name]: value
         }));
-
         if (errors[name]) {
             setErrors(prev => ({
                 ...prev,
@@ -45,15 +39,12 @@ const LoginPage = ({ onLogin }) => {
 
     const validateForm = () => {
         const newErrors = {};
-
         if(!formData.usernameOrEmail.trim()) {
             newErrors.usernameOrEmail = 'Username Or Email Is Required';
         }
-
         if(!formData.password.trim()) {
             newErrors.password = 'Password Is Required';
         }
-
         return newErrors;
     }
 
@@ -63,27 +54,20 @@ const LoginPage = ({ onLogin }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         const validationErrors = validateForm();
         if(Object.keys(validationErrors).length > 0) {
             setErrors(validationErrors);
             return;
         }
-
         setLoading(true);
         setErrors({});
-
         try {
             const response = await authService.login(formData);
-
             if(response.success) {
                 onLogin(response.user);
-
-                // Check if there's a pending room code
                 const pendingRoom = sessionStorage.getItem('pendingRoomCode');
                 if (pendingRoom) {
                     sessionStorage.removeItem('pendingRoomCode');
-                    // Navigate to room with the code
                     navigate(`/room?room=${pendingRoom}`);
                 } else {
                     navigate('/dashboard');
@@ -91,8 +75,7 @@ const LoginPage = ({ onLogin }) => {
             }
         } catch (error) {
             console.error('Login error:', error);
-
-            if(error.requiresEmailVerification) {
+            if(error && typeof error === 'object' && 'requiresEmailVerification' in error && error.requiresEmailVerification) {
                 setUserEmail(formData.usernameOrEmail);
                 setShowEmailVerification(true);
             } else {
