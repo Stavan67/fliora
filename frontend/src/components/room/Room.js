@@ -226,7 +226,7 @@ const Room = ({ user, onLogout }) => {
     };
 
     const handleRoomNotification = async (notification) => {
-        const { type, message, userId } = notification;
+        const { type, message, userId, username, timestamp } = notification;
         console.log('[Room] 📢 Room notification received:', type, 'userId:', userId, 'currentUser:', user.id);
 
         switch (type) {
@@ -255,10 +255,12 @@ const Room = ({ user, onLogout }) => {
                     }
                 }
                 break;
+
             case 'USER_LEFT':
                 await refreshParticipants();
                 addSystemMessage(message);
                 break;
+
             case 'USER_KICKED':
                 // Check if the kicked user is the current user
                 if (String(userId) === String(user.id)) {
@@ -273,13 +275,29 @@ const Room = ({ user, onLogout }) => {
                     addSystemMessage(message);
                 }
                 break;
+
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
                 break;
+
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
+
+            case 'CHAT_MESSAGE':
+                console.log('[Room] 💬 Chat message received from:', username);
+                // Add chat message to local state
+                setChatMessages(prev => [...prev, {
+                    id: Date.now() + Math.random(), // Ensure unique ID
+                    type: 'user',
+                    username: username,
+                    userId: userId,
+                    message: message,
+                    timestamp: new Date(timestamp).toLocaleTimeString()
+                }]);
+                break;
+
             default:
                 console.log('[Room] ❓ Unknown notification type:', type);
                 break;
@@ -394,16 +412,34 @@ const Room = ({ user, onLogout }) => {
     const sendChatMessage = useCallback(() => {
         if (!chatInput.trim()) return;
 
+        if (!stompClient || !stompClient.connected) {
+            console.error('[Room] ❌ Cannot send message: WebSocket not connected');
+            addSystemMessage('Cannot send message: Not connected to server');
+            return;
+        }
+
         const message = {
-            id: Date.now(),
-            type: 'user',
+            type: 'chat',
             username: user.username,
+            userId: user.id,
             message: chatInput,
-            timestamp: new Date().toLocaleTimeString()
+            timestamp: new Date().toISOString()
         };
-        setChatMessages(prev => [...prev, message]);
-        setChatInput('');
-    }, [chatInput, user.username]);
+
+        console.log('[Room] 💬 Sending chat message:', message);
+
+        try {
+            stompClient.publish({
+                destination: `/app/chat/${roomData.roomCode}`,
+                body: JSON.stringify(message)
+            });
+            console.log('[Room] ✅ Chat message sent');
+            setChatInput('');
+        } catch (error) {
+            console.error('[Room] ❌ Error sending chat message:', error);
+            addSystemMessage('Failed to send message');
+        }
+    }, [chatInput, user.username, user.id, stompClient, roomData, addSystemMessage]);
 
     const addSystemMessage = useCallback((message) => {
         setChatMessages(prev => [...prev, {
