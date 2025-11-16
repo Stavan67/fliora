@@ -33,6 +33,7 @@ const Room = ({ user, onLogout }) => {
     const participantsRef = useRef([]);
     const roomDataRef = useRef(null);
     const isKickedRef = useRef(false);
+    const chatSubscriptionRef = useRef(null);
 
     useEffect(() => {
         participantsRef.current = participants;
@@ -144,10 +145,19 @@ const Room = ({ user, onLogout }) => {
                 heartbeatIncoming: 4000,
                 heartbeatOutgoing: 4000,
                 onConnect: () => {
-                    console.log('[Room] 🔌 WebSocket connected');
+                    console.log('[Room] 🔗 WebSocket connected');
+
+                    // Subscribe to room notifications
                     client.subscribe(`/topic/room/${room.roomCode}`, (message) => {
                         handleRoomNotification(JSON.parse(message.body));
                     });
+
+                    // Subscribe to chat messages
+                    const chatSub = client.subscribe(`/topic/chat/${room.roomCode}`, (message) => {
+                        handleChatMessage(JSON.parse(message.body));
+                    });
+                    chatSubscriptionRef.current = chatSub;
+                    console.log('[Room] 💬 Subscribed to chat topic');
 
                     const currentStream = videoStreamRef.current || localStream;
                     webRTCService.initialize(client, room.roomCode, user.id, currentStream);
@@ -165,7 +175,7 @@ const Room = ({ user, onLogout }) => {
                     setTimeout(() => {
                         console.log('[Room] 🔍 Checking for existing participants...');
                         const currentParticipants = participantsRef.current;
-                        console.log('[Room] 📋 Participants to connect to:',
+                        console.log('[Room] 👥 Participants to connect to:',
                             currentParticipants.map(p => `${p.username}(${p.id})`));
                         if (currentParticipants.length > 1) {
                             initiateConnectionsToExistingParticipants();
@@ -188,6 +198,17 @@ const Room = ({ user, onLogout }) => {
         });
     };
 
+    const handleChatMessage = useCallback((message) => {
+        console.log('[Room] 💬 Received chat message:', message);
+
+        // Don't add the message if it's from the current user (already added locally)
+        if (String(message.userId) === String(user.id)) {
+            return;
+        }
+
+        setChatMessages(prev => [...prev, message]);
+    }, [user.id]);
+
     const initiateConnectionsToExistingParticipants = () => {
         const currentParticipants = participantsRef.current;
         console.log('[Room] 🔍 Checking for existing participants to connect to:',
@@ -203,7 +224,7 @@ const Room = ({ user, onLogout }) => {
             const currentUserIdStr = String(user.id);
 
             if (participantIdStr !== currentUserIdStr) {
-                console.log('[Room] 🔗 Processing existing participant:',
+                console.log('[Room] 👤 Processing existing participant:',
                     participant.username, '(', participantIdStr, ')');
 
                 webRTCService.createPeerConnection(participantIdStr).then(() => {
@@ -226,18 +247,18 @@ const Room = ({ user, onLogout }) => {
     };
 
     const handleRoomNotification = async (notification) => {
-        const { type, message, userId, username, timestamp } = notification;
+        const { type, message, userId } = notification;
         console.log('[Room] 📢 Room notification received:', type, 'userId:', userId, 'currentUser:', user.id);
 
         switch (type) {
             case 'USER_JOINED':
                 const updatedParticipants = await refreshParticipants();
-                console.log('[Room] 📋 Participants after refresh:', updatedParticipants.map(p => ({ id: p.id, username: p.username })));
+                console.log('[Room] 👥 Participants after refresh:', updatedParticipants.map(p => ({ id: p.id, username: p.username })));
 
                 addSystemMessage(message);
 
                 if (userId && String(userId) !== String(user.id)) {
-                    console.log('[Room] 🔗 New participant joined, setting up WebRTC:', userId);
+                    console.log('[Room] 👤 New participant joined, setting up WebRTC:', userId);
 
                     if (webRTCReady) {
                         setTimeout(() => {
@@ -255,12 +276,10 @@ const Room = ({ user, onLogout }) => {
                     }
                 }
                 break;
-
             case 'USER_LEFT':
                 await refreshParticipants();
                 addSystemMessage(message);
                 break;
-
             case 'USER_KICKED':
                 // Check if the kicked user is the current user
                 if (String(userId) === String(user.id)) {
@@ -275,29 +294,13 @@ const Room = ({ user, onLogout }) => {
                     addSystemMessage(message);
                 }
                 break;
-
             case 'MEDIA_UPDATED':
                 await refreshParticipants();
                 break;
-
             case 'ROOM_ENDED':
                 addSystemMessage(message);
                 setTimeout(() => goBackToDashboard(), 3000);
                 break;
-
-            case 'CHAT_MESSAGE':
-                console.log('[Room] 💬 Chat message received from:', username);
-                // Add chat message to local state
-                setChatMessages(prev => [...prev, {
-                    id: Date.now() + Math.random(), // Ensure unique ID
-                    type: 'user',
-                    username: username,
-                    userId: userId,
-                    message: message,
-                    timestamp: new Date(timestamp).toLocaleTimeString()
-                }]);
-                break;
-
             default:
                 console.log('[Room] ❓ Unknown notification type:', type);
                 break;
@@ -337,7 +340,7 @@ const Room = ({ user, onLogout }) => {
 
     const loadParticipants = async (roomCode) => {
         try {
-            console.log('[Room] 📋 Loading participants for room:', roomCode);
+            console.log('[Room] 👥 Loading participants for room:', roomCode);
             const response = await apiClient.get(`/api/rooms/${roomCode}/participants`);
             const loadedParticipants = response.data.participants;
             console.log('[Room] ✅ Loaded participants:', loadedParticipants.map(p => ({ id: p.id, username: p.username })));
@@ -360,7 +363,6 @@ const Room = ({ user, onLogout }) => {
         }
     };
 
-    // Use useCallback to memoize toggle functions
     const toggleVideo = useCallback(async () => {
         const newVideoState = !videoEnabled;
         setVideoEnabled(newVideoState);
@@ -410,36 +412,38 @@ const Room = ({ user, onLogout }) => {
     }, [audioEnabled, videoEnabled, roomData]);
 
     const sendChatMessage = useCallback(() => {
-        if (!chatInput.trim()) return;
+        if (!chatInput.trim() || !stompClient || !roomData) return;
 
-        if (!stompClient || !stompClient.connected) {
-            console.error('[Room] ❌ Cannot send message: WebSocket not connected');
-            addSystemMessage('Cannot send message: Not connected to server');
-            return;
-        }
-
-        const message = {
-            type: 'chat',
+        const messageData = {
             username: user.username,
-            userId: user.id,
             message: chatInput,
-            timestamp: new Date().toISOString()
+            userId: String(user.id)
         };
 
-        console.log('[Room] 💬 Sending chat message:', message);
+        // Add message locally first
+        const localMessage = {
+            id: Date.now(),
+            type: 'user',
+            username: user.username,
+            message: chatInput,
+            timestamp: new Date().toLocaleTimeString(),
+            userId: String(user.id)
+        };
+        setChatMessages(prev => [...prev, localMessage]);
 
+        // Send to server to broadcast to others
         try {
             stompClient.publish({
                 destination: `/app/chat/${roomData.roomCode}`,
-                body: JSON.stringify(message)
+                body: JSON.stringify(messageData)
             });
-            console.log('[Room] ✅ Chat message sent');
-            setChatInput('');
-        } catch (error) {
-            console.error('[Room] ❌ Error sending chat message:', error);
-            addSystemMessage('Failed to send message');
+            console.log('[Room] 💬 Chat message sent:', messageData);
+        } catch (err) {
+            console.error('[Room] ❌ Failed to send chat message:', err);
         }
-    }, [chatInput, user.username, user.id, stompClient, roomData, addSystemMessage]);
+
+        setChatInput('');
+    }, [chatInput, user.username, user.id, stompClient, roomData]);
 
     const addSystemMessage = useCallback((message) => {
         setChatMessages(prev => [...prev, {
@@ -494,6 +498,17 @@ const Room = ({ user, onLogout }) => {
 
     const cleanup = async () => {
         console.log('[Room] 🧹 Starting cleanup');
+
+        // Unsubscribe from chat
+        if (chatSubscriptionRef.current) {
+            try {
+                chatSubscriptionRef.current.unsubscribe();
+                console.log('[Room] 💬 Unsubscribed from chat');
+            } catch (e) {
+                console.error('[Room] ❌ Error unsubscribing from chat:', e);
+            }
+        }
+
         if (videoStreamRef.current) {
             videoStreamRef.current.getTracks().forEach(track => track.stop());
             videoStreamRef.current = null;

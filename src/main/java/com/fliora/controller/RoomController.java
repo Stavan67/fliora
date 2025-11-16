@@ -11,11 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
@@ -28,13 +23,11 @@ import java.util.stream.Collectors;
 public class RoomController {
     private final RoomService roomService;
     private final UserService userService;
-    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    public RoomController(RoomService roomService, UserService userService, SimpMessagingTemplate messagingTemplate) {
+    public RoomController(RoomService roomService, UserService userService) {
         this.roomService = roomService;
         this.userService = userService;
-        this.messagingTemplate = messagingTemplate;
     }
 
     @PostMapping("/create")
@@ -86,34 +79,6 @@ public class RoomController {
             return ResponseEntity.ok(response);
         } catch(Exception e){
             return buildErrorResponse(e.getMessage(), HttpStatus.BAD_REQUEST);
-        }
-    }
-
-    @MessageMapping("/chat/{roomCode}")
-    public void handleChatMessage(@DestinationVariable String roomCode, @Payload Map<String, Object> message) {
-        try {
-            System.out.println("💬 Chat message received for room: " + roomCode);
-            System.out.println("Message: " + message.get("message"));
-            System.out.println("From user: " + message.get("username"));
-
-            // Verify the room exists
-            Room room = roomService.getRoomByCode(roomCode);
-
-            // Broadcast to all participants in the room
-            String destination = "/topic/room/" + roomCode;
-
-            Map<String, Object> chatNotification = new HashMap<>();
-            chatNotification.put("type", "CHAT_MESSAGE");
-            chatNotification.put("message", message.get("message"));
-            chatNotification.put("username", message.get("username"));
-            chatNotification.put("userId", message.get("userId"));
-            chatNotification.put("timestamp", message.get("timestamp"));
-
-            messagingTemplate.convertAndSend(destination, chatNotification);
-            System.out.println("✅ Chat message broadcasted to: " + destination);
-        } catch (Exception e) {
-            System.err.println("❌ Error handling chat message: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 

@@ -23,10 +23,7 @@ const Dashboard = ({ user, onLogout }) => {
         try {
             setLoading(true);
             setError('');
-
-            console.log('[Dashboard] Validating room:', code);
             const validationResponse = await apiClient.get(`/api/rooms/${code}/validate`);
-
             if (!validationResponse.data.exists) {
                 setError('Room not found. Please check the room code.');
                 return;
@@ -35,11 +32,8 @@ const Dashboard = ({ user, onLogout }) => {
                 setError('Room is full. Cannot join.');
                 return;
             }
-
-            console.log('[Dashboard] Room validated, joining...');
             await handleJoinRoom(code);
         } catch (err) {
-            console.error('[Dashboard] Validation error:', err);
             setError(err.response?.data?.message || 'Failed to join room');
         } finally {
             setLoading(false);
@@ -53,20 +47,9 @@ const Dashboard = ({ user, onLogout }) => {
             const response = await apiClient.post('/api/rooms/create', {
                 roomName: `${user.username}'s Room`
             });
-
-            console.log('[Dashboard] Room created:', response.data.room);
-
-            // Transform the room data to match Room component expectations
-            const roomData = {
-                roomCode: response.data.room.roomCode,
-                roomName: response.data.room.roomName,
-                isHost: response.data.room.isHost
-            };
-
-            console.log('[Dashboard] Navigating to room with data:', roomData);
-
+            const room = response.data.room;
             navigate('/room', {
-                state: { roomData: roomData }
+                state: { roomData: room }
             });
         } catch (err) {
             console.error('Room creation error:', err);
@@ -86,20 +69,9 @@ const Dashboard = ({ user, onLogout }) => {
         setError('');
         try {
             const response = await apiClient.post(`/api/rooms/${code}/join`);
-
-            console.log('[Dashboard] Joined room:', response.data.room);
-
-            // Transform the room data to match Room component expectations
-            const roomData = {
-                roomCode: response.data.room.roomCode,
-                roomName: response.data.room.roomName,
-                isHost: response.data.room.isHost
-            };
-
-            console.log('[Dashboard] Navigating to room with data:', roomData);
-
+            const room = response.data.room;
             navigate('/room', {
-                state: { roomData: roomData }
+                state: { roomData: room }
             });
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to join room. Please check the room code.');
@@ -129,12 +101,12 @@ const Dashboard = ({ user, onLogout }) => {
                 {error && (
                     <div className="error-message">
                         {error}
-                        <button onClick={() => setError('')}>×</button>
+                        <button onClick={() => setError('')}>Ã—</button>
                     </div>
                 )}
                 <div className="main-actions">
                     <div className="action-card">
-                        <div className="action-icon">🎬</div>
+                        <div className="action-icon">ðŸŽ¬</div>
                         <h3>Create Room</h3>
                         <p>Start A New Watch Party And Invite Your Friends</p>
                         <button
@@ -149,7 +121,7 @@ const Dashboard = ({ user, onLogout }) => {
                     <div className="action-divider">OR</div>
 
                     <div className="action-card">
-                        <div className="action-icon">🔗</div>
+                        <div className="action-icon">ðŸ”—</div>
                         <h3>Join Room</h3>
                         <p>Enter A Room Code To Join An Existing Watch Party</p>
                         <div className="join-room-form">
